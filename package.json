@@ -1,0 +1,31 @@
+{
+  "name": "url-slicer",
+  "version": "1.0.0",
+  "description": "Shorten any URL!",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "tsc": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LyubomirT/url-slicer.git"
+  },
+  "keywords": [
+    "url",
+    "slice"
+  ],
+  "author": "LyubomirT",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/LyubomirT/url-slicer/issues"
+  },
+  "homepage": "https://github.com/LyubomirT/url-slicer#readme",
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
