@@ -4,8 +4,10 @@
   "description": "Shorten any URL!",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "tsc": "tsc"
+    "start": "node dist/index.js",
+    "tsc": "tsc",
+    "cleanup": "del /f /q dist && rmdir /s /q dist",
+    "cleanup-linux": "rm -rf dist"
   },
   "repository": {
     "type": "git",

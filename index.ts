@@ -1,21 +1,16 @@
 import express from 'express';
 import path from 'path';
-/* random number generator for picking random letters */
 import { randomInt } from 'crypto';
 import bodyParser from 'body-parser';
 
 const app = express();
 const port = 3000;
 
-// Serve static files from the "public" directory
 app.use(express.static(path.join(__dirname, 'public')));
-
 var jsonParser = bodyParser.json();
+var urlencodedParser = bodyParser.urlencoded({ extended: false });
 
-// create application/x-www-form-urlencoded parser
-var urlencodedParser = bodyParser.urlencoded({ extended: false })
-
-var storedURLs: string[] = [];
+var storedURLs: { [key: string]: string } = {};
 
 function generateID(): string {
     const alphabet: string = 'abcdefghijklmnopqrstuvwxyz';
@@ -27,16 +22,16 @@ function generateID(): string {
     }
     return id;
 }
- 
-function addURL(url: string) {
+
+function addURL(url: string): string {
     const id = generateID();
     console.log(`Shortening ${url} to ${id}`);
     var shortURL = `http://localhost:${port}/${id}`;
-    storedURLs.push(shortURL);
+    storedURLs[id] = url;
     return shortURL;
 }
 
-function isValidURL(url: string) {
+function isValidURL(url: string): boolean {
     try {
         new URL(url);
         return true;
@@ -56,11 +51,19 @@ app.post('/api/shorten', jsonParser, (req, res) => {
         console.log('Missing URL parameter');
         return;
     }
-    var url_ = addURL(url);
-    res.status(200).send({ url: url_ });
+    var shortURL = addURL(url);
+    res.status(200).send({ url: shortURL });
 });
 
-
+app.get('/:id', (req, res) => {
+    var id = req.params.id as string;
+    var url = storedURLs[id];
+    if (url) {
+        res.redirect(url);
+    } else {
+        res.status(404).send('URL not found');
+    }
+});
 
 app.listen(port, () => {
     console.log(`Server started at http://localhost:${port}`);
