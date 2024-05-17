@@ -1,6 +1,6 @@
 body {
-    background-color: #e0f7fa;
-    font-family: Arial, sans-serif;
+    background-color: #87CEEB; /* Sky blue background */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Updated font */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -19,7 +19,7 @@ body {
 }
 
 h1 {
-    color: #00796b;
+    color: #005b99; /* Darker blue for headings */
 }
 
 form {
@@ -29,7 +29,7 @@ form {
 
 label {
     margin: 10px 0 5px;
-    color: #00796b;
+    color: #000000; /* Black color for labels */
 }
 
 input {
@@ -38,11 +38,12 @@ input {
     border: 1px solid #bdbdbd;
     border-radius: 5px;
     outline: none;
+    background-color: #f0f8ff; /* Light sky blue for input fields */
 }
 
 button {
     padding: 10px;
-    background-color: #00796b;
+    background-color: #005b99; /* Matching blue for buttons */
     color: white;
     border: none;
     border-radius: 5px;
@@ -51,11 +52,11 @@ button {
 }
 
 button:hover {
-    background-color: #004d40;
+    background-color: #003f66; /* Darker blue on hover */
 }
 
 #response {
     margin-top: 20px;
-    color: #00796b;
+    color: #000000; /* Black color for response text */
     word-break: break-word;
 }
