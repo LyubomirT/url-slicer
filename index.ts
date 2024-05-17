@@ -10,7 +10,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 var jsonParser = bodyParser.json();
 var urlencodedParser = bodyParser.urlencoded({ extended: false });
 
-var storedURLs: { [key: string]: string } = {};
+interface StoredURL {
+    url: string;
+    expiry: number | null;
+    maxUses: number | null;
+    uses: number;
+}
+
+var storedURLs: { [key: string]: StoredURL } = {};
 
 function generateID(): string {
     const alphabet: string = 'abcdefghijklmnopqrstuvwxyz';
@@ -23,11 +30,11 @@ function generateID(): string {
     return id;
 }
 
-function addURL(url: string): string {
+function addURL(url: string, expiry: number | null, maxUses: number | null): string {
     const id = generateID();
     console.log(`Shortening ${url} to ${id}`);
-    var shortURL = `http://localhost:${port}/${id}`;
-    storedURLs[id] = url;
+    const shortURL = `http://localhost:${port}/${id}`;
+    storedURLs[id] = { url, expiry, maxUses, uses: 0 };
     return shortURL;
 }
 
@@ -45,21 +52,34 @@ app.get('/', (req, res) => {
 });
 
 app.post('/api/shorten', jsonParser, (req, res) => {
-    var url = req.body.url as string;
+    const { url, expiry, maxUses } = req.body;
     if (!url) {
         res.status(400).send('Missing URL parameter');
         console.log('Missing URL parameter');
         return;
     }
-    var shortURL = addURL(url);
+    const expiryTime = expiry ? Date.now() + expiry * 1000 : null;
+    const shortURL = addURL(url, expiryTime, maxUses);
     res.status(200).send({ url: shortURL });
 });
 
 app.get('/:id', (req, res) => {
-    var id = req.params.id as string;
-    var url = storedURLs[id];
-    if (url) {
-        res.redirect(url);
+    const id = req.params.id as string;
+    const record = storedURLs[id];
+
+    if (record) {
+        const { url, expiry, maxUses, uses } = record;
+
+        if (expiry && Date.now() > expiry) {
+            delete storedURLs[id];
+            res.status(404).send('URL has expired');
+        } else if (maxUses && uses >= maxUses) {
+            delete storedURLs[id];
+            res.status(404).send('URL has exceeded maximum uses');
+        } else {
+            record.uses += 1;
+            res.redirect(url);
+        }
     } else {
         res.status(404).send('URL not found');
     }

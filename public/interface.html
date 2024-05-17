@@ -4,38 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>URL Shortener</title>
+    <link rel="stylesheet" href="interface.css">
 </head>
 <body>
-    <h1>URL Shortener</h1>
-    <form id="urlForm">
-        <label for="urlInput">Enter URL:</label>
-        <input type="text" id="urlInput" name="url">
-        <button type="submit">Shorten URL</button>
-    </form>
+    <div class="container">
+        <h1>URL Shortener</h1>
+        <form id="urlForm">
+            <label for="urlInput">Enter URL:</label>
+            <input type="text" id="urlInput" name="url" required>
 
-    <div id="response"></div>
+            <label for="expiryInput">Expiry Time (seconds):</label>
+            <input type="number" id="expiryInput" name="expiry">
 
-    <script>
-        document.getElementById('urlForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-            var url = document.getElementById('urlInput').value;
+            <label for="maxUsesInput">Max Uses:</label>
+            <input type="number" id="maxUsesInput" name="maxUses">
 
-            // Send URL to server
-            fetch('/api/shorten', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ url: url })
-            })
-            .then(response => response.json())
-            .then(data => {
-            document.getElementById('response').innerHTML = 'Shortened URL: ' + data.url;
-            })
-            .catch(error => {
-            document.getElementById('response').innerHTML = 'Error: ' + error;
-            });
-        });
-    </script>
+            <button type="submit">Shorten URL</button>
+        </form>
+        <div id="response"></div>
+    </div>
+    <script src="interface.js"></script>
 </body>
 </html>

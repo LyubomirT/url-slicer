@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node dist/index.js",
     "tsc": "tsc",
-    "cleanup": "del /f /q dist && rmdir /s /q dist",
-    "cleanup-linux": "rm -rf dist"
+    "cleanup": "if exist dist (del /f /q dist && rmdir /s /q dist)",
+    "cleanup-linux": "rm -rf dist",
+    "build": "npm run cleanup && powershell .\\build-and-run.ps1"
   },
   "repository": {
     "type": "git",
