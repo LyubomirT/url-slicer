@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="stylesheet" href="allauth.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Login</h1>
+        <form id="loginForm" method="POST" action="/login">
+            <label for="usernameInput">Username:</label>
+            <input type="text" id="usernameInput" name="username" required>
+
+            <label for="passwordInput">Password:</label>
+            <input type="password" id="passwordInput" name="password" required>
+
+            <button type="submit">Login</button>
+        </form>
+        <p>Don't have an account? <a href="/signup">Signup here</a></p>
+    </div>
+    <script src="login.js"></script>
+</body>
+</html>

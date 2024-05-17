@@ -2,14 +2,110 @@ import express from 'express';
 import path from 'path';
 import { randomInt } from 'crypto';
 import bodyParser from 'body-parser';
+import passport from 'passport';
+import LocalStrategy from 'passport-local';
+import session from 'express-session';
+import fs from 'fs';
+import crypto from 'crypto';
+
+interface User {
+    id: string;
+    username: string;
+    password: string;
+    token: string;
+}
+
+let users: User[] = [];
 
 const app = express();
 const port = 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
-var jsonParser = bodyParser.json();
-var urlencodedParser = bodyParser.urlencoded({ extended: false });
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
+// Passport settings
+app.use(
+    session({
+        secret: 'your-secret-key',
+        resave: false,
+        saveUninitialized: false,
+    })
+);
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.use(
+    new LocalStrategy((username, password, done) => {
+        const user = users.find((u) => u.username === username && u.password === password);
+        if (user) {
+            return done(null, user);
+        } else {
+            return done(null, false, { message: 'Invalid credentials' });
+        }
+    })
+);
+
+passport.serializeUser((user: Express.User, done) => {
+    done(null, (user as User).id);
+});
+
+passport.deserializeUser((id: string, done) => {
+    const user = users.find((u) => u.id === id);
+    done(null, user ? user : false);
+});
+
+function generateToken(): string {
+    return crypto.randomBytes(16).toString('hex');
+}
+
+function generateUserID(): string {
+    return crypto.randomBytes(4).toString('hex');
+}
+
+// Routes for Auth
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/signup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
+app.post(
+    '/login',
+    passport.authenticate('local', {
+        successRedirect: '/tokendownload',
+        failureRedirect: '/login',
+    })
+);
+
+app.post('/signup', (req, res) => {
+    const { username, password } = req.body;
+    const token = generateToken();
+    const user = { id: generateUserID(), username, password, token };
+    users.push(user);
+    res.setHeader('Content-disposition', 'attachment; filename=token.txt');
+    res.set('Content-Type', 'text/plain');
+    res.send(`Your Recovery Token:\n\n${token}`);
+});
+
+app.get('/tokendownload', (req, res) => {
+    if (req.isAuthenticated()) {
+        const user = users.find((u) => u.id === (req.user as User).id);
+        if (user) {
+            res.sendFile(path.join(__dirname, 'public', 'tokendownload.html'));
+        }
+    } else {
+        res.redirect('/login');
+    }
+});
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'interface.html'));
+});
+
+// URL Shortener Logic
 interface StoredURL {
     url: string;
     expiry: number | null;
@@ -47,11 +143,7 @@ function isValidURL(url: string): boolean {
     }
 }
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'interface.html'));
-});
-
-app.post('/api/shorten', jsonParser, (req, res) => {
+app.post('/api/shorten', (req, res) => {
     const { url, expiry, maxUses } = req.body;
     if (!url) {
         res.status(400).send('Missing URL parameter');
