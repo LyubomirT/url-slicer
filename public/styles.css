@@ -1,0 +1,142 @@
+@import url('https://fonts.googleapis.com/css2?family=Lunasima:wght@400;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Lunasima', sans-serif;
+  background-color: #f0e3da;
+  color: #262423;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+h1, h2, h3 {
+  margin-bottom: 20px;
+}
+
+a {
+  color: #E4864B;
+  text-decoration: none;
+}
+
+.btn {
+  display: inline-block;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 25px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.1s;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+.btn-primary {
+  background-color: #E4864B;
+  color: #fff;
+}
+
+.btn-secondary {
+  background-color: #A8926F;
+  color: #fff;
+}
+
+.panel {
+  background-color: #c4b6ab;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea,
+select {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #A8926F;
+  border-radius: 5px;
+  font-family: 'Lunasima', sans-serif;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.error {
+  color: #ff4136;
+  margin-bottom: 10px;
+}
+
+.success {
+  color: #2ecc40;
+  margin-bottom: 10px;
+}
+
+.url-list {
+  list-style-type: none;
+}
+
+.url-item {
+  background-color: #fff;
+  border-radius: 5px;
+  padding: 15px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.url-item h3 {
+  margin-bottom: 10px;
+}
+
+.url-item p {
+  margin-bottom: 5px;
+}
+
+.stats-container {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.stat-box {
+  background-color: #fff;
+  border-radius: 5px;
+  padding: 15px;
+  margin-bottom: 10px;
+  flex-basis: calc(33% - 10px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+  .stat-box {
+    flex-basis: 100%;
+  }
+}
+
+.feather {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  vertical-align: middle;
+  margin-right: 5px;
+}

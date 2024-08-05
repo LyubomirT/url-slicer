@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>URL Slicer - Home</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome to URL Slicer</h1>
+    <% if (user) { %>
+      <p>Hello, <%= user.email %>!</p>
+      <a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
+      <a href="/logout" class="btn btn-secondary">Logout</a>
+    <% } else { %>
+      <p>Shorten and manage your URLs with ease.</p>
+      <a href="/login" class="btn btn-primary">Login</a>
+      <a href="/register" class="btn btn-secondary">Register</a>
+    <% } %>
+  </div>
+  <script>
+    feather.replace();
+  </script>
+</body>
+</html>
