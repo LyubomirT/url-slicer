@@ -1,131 +1,216 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>URL Slicer - Dashboard</title>
-  <link rel="stylesheet" href="/styles.css">
-  <script src="https://unpkg.com/feather-icons"></script>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-</head>
-<body>
-  <div class="container">
-    <h1>Dashboard</h1>
-    <p>Welcome, <%= user.email %>!</p>
-    <a href="/logout" class="btn btn-secondary">Logout</a>
+<h1>Dashboard</h1>
+<p>Welcome, <%= user.email %>!</p>
 
-    <div class="panel">
-      <h2>Shorten a URL</h2>
-      <form id="shorten-form">
-        <div class="form-group">
-          <label for="original-url">Original URL:</label>
-          <input type="url" id="original-url" name="originalUrl" required>
-        </div>
-        <div class="form-group">
-          <label for="max-uses">Max Uses:</label>
-          <input type="number" id="max-uses" name="maxUses" min="1">
-        </div>
-        <div class="form-group">
-          <label for="auto-delete-at">Auto Delete At:</label>
-          <input type="datetime-local" id="auto-delete-at" name="autoDeleteAt">
-        </div>
-        <div class="form-group">
-          <label for="whitelist-mode">Whitelist Mode:</label>
-          <input type="checkbox" id="whitelist-mode" name="whitelistMode">
-        </div>
-        <div class="form-group">
-          <label for="allowed-countries">Allowed Countries (comma-separated):</label>
-          <input type="text" id="allowed-countries" name="allowedCountries">
-        </div>
-        <div class="form-group">
-          <label for="blocked-countries">Blocked Countries (comma-separated):</label>
-          <input type="text" id="blocked-countries" name="blockedCountries">
-        </div>
-        <button type="submit" class="btn btn-primary">Shorten URL</button>
-      </form>
+<div class="panel">
+  <h2>Shorten a URL</h2>
+  <form id="shorten-form">
+    <div class="form-group">
+      <label for="original-url">Original URL:</label>
+      <input type="url" id="original-url" name="originalUrl" required>
     </div>
+    <div class="form-group">
+      <label for="max-uses">Max Uses:</label>
+      <input type="number" id="max-uses" name="maxUses" min="1">
+    </div>
+    <div class="form-group">
+      <label for="auto-delete-at">Auto Delete At:</label>
+      <input type="datetime-local" id="auto-delete-at" name="autoDeleteAt">
+    </div>
+    <div class="form-group">
+      <label for="whitelist-mode">
+        <input type="checkbox" id="whitelist-mode" name="whitelistMode">
+        Whitelist Mode
+      </label>
+    </div>
+    <div class="form-group">
+      <label for="allowed-countries">Allowed Countries (comma-separated):</label>
+      <input type="text" id="allowed-countries" name="allowedCountries">
+    </div>
+    <div class="form-group">
+      <label for="blocked-countries">Blocked Countries (comma-separated):</label>
+      <input type="text" id="blocked-countries" name="blockedCountries">
+    </div>
+    <button type="submit" class="btn btn-primary">Shorten URL</button>
+  </form>
+</div>
 
-    <div class="panel">
-      <h2>Your Shortened URLs</h2>
-      <ul class="url-list">
-        <% urls.forEach(function(url) { %>
-          <li class="url-item">
-            <h3><%= url.original_url %></h3>
-            <p>Short URL: <a href="/<%= url.short_code %>" target="_blank"><%= url.short_code %></a></p>
-            <p>Created: <%= new Date(url.created_at).toLocaleString() %></p>
-            <button class="btn btn-secondary view-stats" data-short-code="<%= url.short_code %>">View Stats</button>
-          </li>
-        <% }); %>
-      </ul>
-    </div>
+<div class="panel">
+  <h2>Your Shortened URLs</h2>
+  <ul class="url-list">
+    <% urls.forEach(function(url) { %>
+      <li class="url-item">
+        <h3><%= url.original_url %></h3>
+        <p>Short URL: <a href="/<%= url.short_code %>" target="_blank"><%= url.short_code %></a></p>
+        <p>Created: <%= new Date(url.created_at).toLocaleString() %></p>
+        <p>Max Uses: <%= url.max_uses || 'Unlimited' %></p>
+        <p>Auto Delete At: <%= url.auto_delete_at ? new Date(url.auto_delete_at).toLocaleString() : 'Never' %></p>
+        <p>Whitelist Mode: <%= url.whitelist_mode ? 'On' : 'Off' %></p>
+        <p>Allowed Countries: <%= url.allowed_countries || 'All' %></p>
+        <p>Blocked Countries: <%= url.blocked_countries || 'None' %></p>
+        <button class="btn btn-secondary view-stats" data-short-code="<%= url.short_code %>">View Stats</button>
+        <button class="btn btn-secondary edit-url" data-short-code="<%= url.short_code %>">Edit</button>
+        <button class="btn btn-secondary delete-url" data-short-code="<%= url.short_code %>">Delete</button>
+      </li>
+    <% }); %>
+  </ul>
+</div>
 
-    <div id="stats-modal" class="modal" style="display: none;">
-      <div class="modal-content panel">
-        <h2>URL Statistics</h2>
-        <div id="stats-content"></div>
-        <button class="btn btn-secondary close-modal">Close</button>
-      </div>
-    </div>
+<div id="stats-modal" class="modal">
+  <div class="modal-content panel">
+    <span class="close-modal">&times;</span>
+    <h2>URL Statistics</h2>
+    <div id="stats-content"></div>
   </div>
+</div>
 
-  <script>
-    feather.replace();
+<div id="edit-modal" class="modal">
+  <div class="modal-content panel">
+    <span class="close-modal">&times;</span>
+    <h2>Edit URL</h2>
+    <form id="edit-form">
+      <input type="hidden" id="edit-short-code" name="shortCode">
+      <div class="form-group">
+        <label for="edit-max-uses">Max Uses:</label>
+        <input type="number" id="edit-max-uses" name="maxUses" min="1">
+      </div>
+      <div class="form-group">
+        <label for="edit-auto-delete-at">Auto Delete At:</label>
+        <input type="datetime-local" id="edit-auto-delete-at" name="autoDeleteAt">
+      </div>
+      <div class="form-group">
+        <label for="edit-whitelist-mode">
+          <input type="checkbox" id="edit-whitelist-mode" name="whitelistMode">
+          Whitelist Mode
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="edit-allowed-countries">Allowed Countries (comma-separated):</label>
+        <input type="text" id="edit-allowed-countries" name="allowedCountries">
+      </div>
+      <div class="form-group">
+        <label for="edit-blocked-countries">Blocked Countries (comma-separated):</label>
+        <input type="text" id="edit-blocked-countries" name="blockedCountries">
+      </div>
+      <button type="submit" class="btn btn-primary">Update URL</button>
+    </form>
+  </div>
+</div>
 
-    $(document).ready(function() {
-      $('#shorten-form').submit(function(e) {
-        e.preventDefault();
-        $.ajax({
-          url: '/shorten',
-          method: 'POST',
-          data: $(this).serialize(),
-          success: function(response) {
-            alert('URL shortened successfully! Short code: ' + response.shortCode);
-            location.reload();
-          },
-          error: function(xhr, status, error) {
-            alert('Error: ' + xhr.responseJSON.error);
-          }
-        });
-      });
-
-      $('.view-stats').click(function() {
-        var shortCode = $(this).data('short-code');
-        $.ajax({
-          url: '/stats/' + shortCode,
-          method: 'GET',
-          success: function(response) {
-            var statsHtml = '<p>Original URL: ' + response.url.original_url + '</p>';
-            statsHtml += '<p>Total Clicks: ' + response.clicks.length + '</p>';
-            
-            var countryStats = {};
-            response.clicks.forEach(function(click) {
-              if (countryStats[click.country]) {
-                countryStats[click.country]++;
-              } else {
-                countryStats[click.country] = 1;
-              }
-            });
-
-            statsHtml += '<h3>Clicks by Country:</h3>';
-            statsHtml += '<ul>';
-            for (var country in countryStats) {
-              statsHtml += '<li>' + country + ': ' + countryStats[country] + '</li>';
-            }
-            statsHtml += '</ul>';
-
-            $('#stats-content').html(statsHtml);
-            $('#stats-modal').show();
-          },
-          error: function(xhr, status, error) {
-            alert('Error: ' + xhr.responseJSON.error);
-          }
-        });
-      });
-
-      $('.close-modal').click(function() {
-        $('#stats-modal').hide();
-      });
+<script>
+$(document).ready(function() {
+  $('#shorten-form').submit(function(e) {
+    e.preventDefault();
+    $.ajax({
+      url: '/shorten',
+      method: 'POST',
+      data: $(this).serialize(),
+      success: function(response) {
+        alert('URL shortened successfully! Short code: ' + response.shortCode);
+        location.reload();
+      },
+      error: function(xhr, status, error) {
+        alert('Error: ' + xhr.responseJSON.error);
+      }
     });
-  </script>
-</body>
-</html>
+  });
+
+  $('.view-stats').click(function() {
+    var shortCode = $(this).data('short-code');
+    $.ajax({
+      url: '/stats/' + shortCode,
+      method: 'GET',
+      success: function(response) {
+        var statsHtml = '<p>Original URL: ' + response.url.original_url + '</p>';
+        statsHtml += '<p>Total Clicks: ' + response.clicks.length + '</p>';
+        
+        var countryStats = {};
+        response.clicks.forEach(function(click) {
+          if (countryStats[click.country]) {
+            countryStats[click.country]++;
+          } else {
+            countryStats[click.country] = 1;
+          }
+        });
+
+        statsHtml += '<h3>Clicks by Country:</h3>';
+        statsHtml += '<ul>';
+        for (var country in countryStats) {
+          statsHtml += '<li>' + country + ': ' + countryStats[country] + '</li>';
+        }
+        statsHtml += '</ul>';
+
+        $('#stats-content').html(statsHtml);
+        $('#stats-modal').show();
+      },
+      error: function(xhr, status, error) {
+        alert('Error: ' + xhr.responseJSON.error);
+      }
+    });
+  });
+
+  $('.edit-url').click(function() {
+    var shortCode = $(this).data('short-code');
+    $.ajax({
+      url: '/url/' + shortCode,
+      method: 'GET url: /url/' + shortCode,
+      method: 'GET',
+      success: function(response) {
+        $('#edit-short-code').val(shortCode);
+        $('#edit-max-uses').val(response.maxUses);
+        $('#edit-auto-delete-at').val(response.autoDeleteAt);
+        $('#edit-whitelist-mode').prop('checked', response.whitelistMode);
+        $('#edit-allowed-countries').val(response.allowedCountries);
+        $('#edit-blocked-countries').val(response.blockedCountries);
+        $('#edit-modal').show();
+      },
+      error: function(xhr, status, error) {
+        alert('Error: ' + xhr.responseJSON.error);
+      }
+    });
+  });
+
+  $('#edit-form').submit(function(e) {
+    e.preventDefault();
+    var shortCode = $('#edit-short-code').val();
+    $.ajax({
+      url: '/url/' + shortCode,
+      method: 'PUT',
+      data: $(this).serialize(),
+      success: function(response) {
+        alert('URL updated successfully!');
+        location.reload();
+      },
+      error: function(xhr, status, error) {
+        alert('Error: ' + xhr.responseJSON.error);
+      }
+    });
+  });
+
+  $('.delete-url').click(function() {
+    var shortCode = $(this).data('short-code');
+    if (confirm('Are you sure you want to delete this URL?')) {
+      $.ajax({
+        url: '/url/' + shortCode,
+        method: 'DELETE',
+        success: function(response) {
+          alert('URL deleted successfully!');
+          location.reload();
+        },
+        error: function(xhr, status, error) {
+          alert('Error: ' + xhr.responseJSON.error);
+        }
+      });
+    }
+  });
+
+  $('.close-modal').click(function() {
+    $('.modal').hide();
+  });
+
+  $(window).click(function(event) {
+    if ($(event.target).hasClass('modal')) {
+      $('.modal').hide();
+    }
+  });
+});
+</script>

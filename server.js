@@ -8,6 +8,7 @@ const path = require('path');
 const nodemailer = require('nodemailer');
 const shortid = require('shortid');
 const geoip = require('geoip-lite');
+const expressLayouts = require('express-ejs-layouts');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -49,6 +50,9 @@ db.run(`CREATE TABLE IF NOT EXISTS clicks (
 
 // Middleware
 app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+app.use(expressLayouts);
+app.set('layout', 'layout'); // This sets layout.ejs as the default layout
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -94,8 +98,8 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false,
   auth: {
-    user: process.env.login,
-    pass: process.env.password
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
@@ -129,7 +133,7 @@ app.post('/register', async (req, res) => {
     // Send verification email
     const verificationLink = `http://localhost:${port}/verify?email=${email}`;
     const mailOptions = {
-      from: process.env.login,
+      from: process.env.EMAIL_USER,
       to: email,
       subject: 'Verify your email for URL Slicer',
       text: `Please click on this link to verify your email: ${verificationLink}`
@@ -258,6 +262,63 @@ app.get('/stats/:shortCode', (req, res) => {
       }
       res.json({ url, clicks });
     });
+  });
+});
+
+app.get('/url/:shortCode', (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { shortCode } = req.params;
+  db.get('SELECT * FROM urls WHERE short_code = ? AND user_id = ?', [shortCode, req.user.id], (err, url) => {
+    if (err || !url) {
+      return res.status(404).json({ error: 'URL not found' });
+    }
+    res.json(url);
+  });
+});
+
+app.put('/url/:shortCode', (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { shortCode } = req.params;
+  const { maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries } = req.body;
+
+  db.run(
+    'UPDATE urls SET max_uses = ?, auto_delete_at = ?, whitelist_mode = ?, allowed_countries = ?, blocked_countries = ? WHERE short_code = ? AND user_id = ?',
+    [maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, shortCode, req.user.id],
+    function(err) {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Error updating URL' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'URL not found' });
+      }
+      res.json({ message: 'URL updated successfully' });
+    }
+  );
+});
+
+app.delete('/url/:shortCode', (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { shortCode } = req.params;
+
+  db.run('DELETE FROM urls WHERE short_code = ? AND user_id = ?', [shortCode, req.user.id], function(err) {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'Error deleting URL' });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'URL not found' });
+    }
+    res.json({ message: 'URL deleted successfully' });
   });
 });
 

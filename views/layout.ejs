@@ -9,8 +9,25 @@
   <script src="https://unpkg.com/feather-icons"></script>
 </head>
 <body>
-  <div class="container">
-    <%- body %>
+  <div class="app-container">
+    <nav class="sidebar">
+      <div class="logo">
+        <h1>URL Slicer</h1>
+      </div>
+      <ul class="nav-links">
+        <li><a href="/"><i data-feather="home"></i> Home</a></li>
+        <% if (typeof user !== 'undefined' && user) { %>
+          <li><a href="/dashboard"><i data-feather="layout"></i> Dashboard</a></li>
+          <li><a href="/logout"><i data-feather="log-out"></i> Logout</a></li>
+        <% } else { %>
+          <li><a href="/login"><i data-feather="log-in"></i> Login</a></li>
+          <li><a href="/register"><i data-feather="user-plus"></i> Register</a></li>
+        <% } %>
+      </ul>
+    </nav>
+    <main class="content">
+      <%- body %>
+    </main>
   </div>
   <script>
     feather.replace();
