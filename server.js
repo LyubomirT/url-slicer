@@ -9,6 +9,9 @@ const nodemailer = require('nodemailer');
 const shortid = require('shortid');
 const geoip = require('geoip-lite');
 const expressLayouts = require('express-ejs-layouts');
+const dotenv = require('dotenv');
+const { emit } = require('process');
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -91,35 +94,31 @@ passport.deserializeUser((id, done) => {
     done(err, user);
   });
 });
-
 // Nodemailer configuration
 const transporter = nodemailer.createTransport({
   host: 'smtp.office365.com',
   port: 587,
   secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    user: process.env.login,
+    pass: process.env.password
   }
 });
+
 
 // Routes
 app.get('/', (req, res) => {
   res.render('index', { user: req.user });
 });
 
-app.get('/login', (req, res) => {
-  res.render('login');
-});
-
 app.get('/logout', (req, res) => {
-  req.logout((err) => {
-    if (err) {
-      console.error('Error during logout:', err);
-      return res.status(500).send('Error logging out');
-    }
+  req.logout(() => {
     res.redirect('/');
   });
+});
+
+app.get('/login', (req, res) => {
+  res.render('login');
 });
 
 app.post('/login', passport.authenticate('local', {
@@ -143,22 +142,35 @@ app.post('/register', async (req, res) => {
     // Send verification email
     const verificationLink = `http://localhost:${port}/verify?email=${email}`;
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: process.env.login,
       to: email,
       subject: 'Verify your email for URL Slicer',
       text: `Please click on this link to verify your email: ${verificationLink}`
     };
     
-    transporter.sendMail(mailOptions, (error, info) => {
+    transporter.sendMail(mailOptions, async (error, info) => {
+      var isSuccess;
       if (error) {
         console.log(error);
+        isSuccess = false;
       } else {
-        console.log('Email sent: ' + info.response);
+        isSuccess = true;
+        console.log('Email sent.');
       }
+
+      if (isSuccess) {
+        res.redirect('/register-confirmation' + '?email=' + email);
+      } else {
+        res.render('register', { error: 'Error sending email' });
+      }
+
+      return true;
     });
-    
-    res.redirect('/login');
   });
+});
+
+app.get('/register-confirmation', (req, res) => {
+  res.render('register-confirmation', { email: req.query.email });
 });
 
 app.get('/verify', (req, res) => {
@@ -331,6 +343,8 @@ app.delete('/url/:shortCode', (req, res) => {
     res.json({ message: 'URL deleted successfully' });
   });
 });
+
+
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
