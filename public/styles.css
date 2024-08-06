@@ -271,6 +271,10 @@ select:focus {
   background-color: rgba(0, 0, 0, 0.5);
 }
 
+#universal-modal {
+  z-index: 1001;
+}
+
 .modal-content {
   background-color: var(--panel-color);
   margin: 10% auto;

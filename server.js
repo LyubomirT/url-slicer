@@ -17,7 +17,10 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Database setup
-const db = new sqlite3.Database('./database.sqlite');
+const db = new sqlite3.Database('./database.sqlite', sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE);
+
+// Enable foreign key support
+db.run('PRAGMA foreign_keys = ON');
 
 // Create users table if not exists
 db.run(`CREATE TABLE IF NOT EXISTS users (
@@ -28,7 +31,7 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
   verification_token TEXT
 )`);
 
-// Create urls table if not exists (updated to include custom_alias)
+// Create urls table if not exists
 db.run(`CREATE TABLE IF NOT EXISTS urls (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER,
@@ -62,12 +65,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(session({
-  secret: 'your-secret-key',
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Logging function
+function log(message, data = {}) {
+  console.log(JSON.stringify({ timestamp: new Date().toISOString(), message, ...data }));
+}
 
 // Passport configuration
 passport.use(new LocalStrategy(
@@ -103,8 +111,8 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false,
   auth: {
-    user: process.env.login,
-    pass: process.env.password
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
@@ -147,7 +155,7 @@ app.post('/register', async (req, res) => {
       // Send verification email
       const verificationLink = `http://localhost:${port}/verify/${verificationToken}`;
       const mailOptions = {
-        from: process.env.login,
+        from: process.env.EMAIL_USER,
         to: email,
         subject: 'Verify your email for URL Slicer',
         text: `Please click on this link to verify your email: ${verificationLink}`
@@ -233,60 +241,79 @@ app.post('/shorten', (req, res) => {
 });
 
 app.get('/:code', async (req, res) => {
+  // make sure we're using the latest data
+  db.get('PRAGMA read_uncommitted = true');
   const { code } = req.params;
-  db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], async (err, url) => {
-    if (err || !url) {
-      return res.status(404).send('URL not found');
+  log('Accessing URL', { code });
+
+  try {
+    const url = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!url) {
+      log('URL not found', { code });
+      return res.status(404).render('url-not-found');
     }
+
+    log('URL found', { url });
 
     const ip = req.ip;
-    console.log('IP:', ip);
-    try {
-      const response = await axios.get(`http://ip-api.com/json/${ip}`);
-      console.log(response.data);
-      const country = response.data.countryCode;
+    log('Client IP', { ip });
 
-      if (url.whitelist_mode) {
-        const allowedCountries = url.allowed_countries ? url.allowed_countries.split(',') : [];
-        if (!allowedCountries.includes(country)) {
-          return res.status(403).send('Access denied from your country');
-        }
-      } else {
-        const blockedCountries = url.blocked_countries ? url.blocked_countries.split(',') : [];
-        if (blockedCountries.includes(country)) {
-          return res.status(403).send('Access denied from your country');
-        }
+    const response = await axios.get(`http://ip-api.com/json/${ip}`);
+    const country = response.data.countryCode;
+    log('Country detected', { country });
+
+    if (url.whitelist_mode) {
+      const allowedCountries = url.allowed_countries ? url.allowed_countries.split(',') : [];
+      log('Whitelist mode', { allowedCountries });
+      if (!allowedCountries.includes(country)) {
+        log('Access denied: country not in whitelist', { country });
+        return res.status(403).render('access-denied');
       }
-
-      if (url.max_uses !== null) {
-        db.get('SELECT COUNT(*) as click_count FROM clicks WHERE url_id = ?', [url.id], (err, result) => {
-          if (err) {
-            console.error(err);
-            return res.status(500).send('Error checking click count');
-          }
-          if (result.click_count >= url.max_uses) {
-            return res.status(410).send('This link has reached its maximum number of uses');
-          }
-          recordClickAndRedirect(url, country, res);
-        });
-      } else {
-        recordClickAndRedirect(url, country, res);
+    } else {
+      const blockedCountries = url.blocked_countries ? url.blocked_countries.split(',') : [];
+      log('Blacklist mode', { blockedCountries });
+      if (blockedCountries.includes(country)) {
+        log('Access denied: country in blocklist', { country });
+        return res.status(403).render('access-denied');
       }
-    } catch (error) {
-      console.error('Error fetching country information:', error);
-      return res.status(500).send('Error processing your request');
     }
-  });
-});
 
-function recordClickAndRedirect(url, country, res) {
-  db.run('INSERT INTO clicks (url_id, country) VALUES (?, ?)', [url.id, country], (err) => {
-    if (err) {
-      console.error(err);
+    const clickCount = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) as count FROM clicks WHERE url_id = ?', [url.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row.count);
+      });
+    });
+
+    log('Current click count', { clickCount, maxUses: url.max_uses });
+
+    if (url.max_uses !== null && url.max_uses > 0 && clickCount >= url.max_uses) {
+      log('Max uses reached', { clickCount, maxUses: url.max_uses });
+      return res.status(410).render('max-uses-reached');
     }
+
+    await new Promise((resolve, reject) => {
+      db.run('INSERT INTO clicks (url_id, country) VALUES (?, ?)', [url.id, country], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    log('Click recorded', { urlId: url.id, country });
+    log('Redirecting', { originalUrl: url.original_url });
     res.redirect(url.original_url);
-  });
-}
+
+  } catch (error) {
+    log('Error processing request', { error: error.message, stack: error.stack });
+    res.status(500).send('An error occurred while processing your request');
+  }
+});
 
 app.get('/stats/:code', (req, res) => {
   if (!req.user) {
@@ -378,6 +405,41 @@ app.get('/find/:code', (req, res) => {
   });
 });
 
+// Debug route
+app.get('/debug/:code', (req, res) => {
+  const { code } = req.params;
+  db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], (err, url) => {
+    if (err || !url) {
+      return res.status(404).json({ error: 'URL not found' });
+    }
+    db.get('SELECT COUNT(*) as click_count FROM clicks WHERE url_id = ?', [url.id], (err, result) => {
+      if (err) {
+        return res.status(500).json({ error: 'Error fetching click count' });
+      }
+      res.json({ url, click_count: result.click_count });
+    });
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
+
+// Start the server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Closing database connection...');
+  db.close((err) => {
+    if (err) {
+      console.error(err.message);
+    }
+    console.log('Database connection closed.');
+    process.exit(0);
+  });
 });
