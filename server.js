@@ -179,7 +179,7 @@ app.get('/verify', (req, res) => {
     if (err) {
       return res.send('Error verifying email');
     }
-    res.send('Email verified successfully. You can now log in.');
+    res.render('verification-success');
   });
 });
 
