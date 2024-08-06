@@ -58,7 +58,7 @@
           <div class="url-actions">
             <button class="btn btn-secondary view-stats" data-short-code="<%= url.short_code %>">View Stats</button>
             <button class="btn btn-secondary edit-url" data-short-code="<%= url.short_code %>">Edit</button>
-            <button class="btn btn-secondary delete-url" data-short-code="<%= url.short_code %>">Delete</button>
+            <button class="btn btn-secondary open-modal" data-modal="delete" data-short-code="<%= url.short_code %>">Delete</button>
           </div>
         </li>
       <% }); %>
@@ -66,6 +66,17 @@
   </div>
 </div>
 
+<!-- Universal Modal -->
+<div id="universal-modal" class="modal">
+  <div class="modal-content panel">
+    <span class="close-modal">&times;</span>
+    <h2 id="modal-title"></h2>
+    <div id="modal-body"></div>
+    <div id="modal-actions"></div>
+  </div>
+</div>
+
+<!-- Stats Modal (Exception) -->
 <div id="stats-modal" class="modal">
   <div class="modal-content panel">
     <span class="close-modal">&times;</span>
@@ -74,6 +85,7 @@
   </div>
 </div>
 
+<!-- Edit Modal (Exception) -->
 <div id="edit-modal" class="modal">
   <div class="modal-content panel">
     <span class="close-modal">&times;</span>
@@ -110,18 +122,11 @@
 <script>
 $(document).ready(function() {
   // Tab functionality
-  $('#shortener-tab').click(function() {
-    $('#shortener-content').show();
-    $('#urls-content').hide();
+  $('.tab-button').click(function() {
+    $('.tab-content').hide();
     $('.tab-button').removeClass('active');
     $(this).addClass('active');
-  });
-
-  $('#urls-tab').click(function() {
-    $('#urls-content').show();
-    $('#shortener-content').hide();
-    $('.tab-button').removeClass('active');
-    $(this).addClass('active');
+    $('#' + $(this).attr('id').replace('-tab', '-content')).show();
   });
 
   $('#shortener-tab').click();
@@ -134,16 +139,19 @@ $(document).ready(function() {
       method: 'POST',
       data: $(this).serialize(),
       success: function(response) {
-        alert('URL shortened successfully! Short code: ' + response.shortCode);
-        location.reload();
+        showModal('URL Shortened', 'URL shortened successfully! Short code: ' + response.shortCode, [
+          {text: 'OK', class: 'btn-primary', click: function() { location.reload(); }}
+        ]);
       },
-      error: function(xhr, status, error) {
-        alert('Error: ' + xhr.responseJSON.error);
+      error: function(xhr) {
+        showModal('Error', 'Error: ' + xhr.responseJSON.error, [
+          {text: 'OK', class: 'btn-primary', click: function() { closeModal(); }}
+        ]);
       }
     });
   });
 
-  // View stats
+  // View stats (Exception)
   $('.view-stats').click(function() {
     var shortCode = $(this).data('short-code');
     $.ajax({
@@ -155,11 +163,7 @@ $(document).ready(function() {
         
         var countryStats = {};
         response.clicks.forEach(function(click) {
-          if (countryStats[click.country]) {
-            countryStats[click.country]++;
-          } else {
-            countryStats[click.country] = 1;
-          }
+          countryStats[click.country] = (countryStats[click.country] || 0) + 1;
         });
 
         statsHtml += '<h3>Clicks by Country:</h3>';
@@ -172,13 +176,15 @@ $(document).ready(function() {
         $('#stats-content').html(statsHtml);
         $('#stats-modal').show();
       },
-      error: function(xhr, status, error) {
-        alert('Error: ' + xhr.responseJSON.error);
+      error: function(xhr) {
+        showModal('Error', 'Error: ' + xhr.responseJSON.error, [
+          {text: 'OK', class: 'btn-primary', click: function() { closeModal(); }}
+        ]);
       }
     });
   });
 
-  // Edit URL
+  // Edit URL (Exception)
   $('.edit-url').click(function() {
     var shortCode = $(this).data('short-code');
     $.ajax({
@@ -193,8 +199,10 @@ $(document).ready(function() {
         $('#edit-blocked-countries').val(response.blocked_countries);
         $('#edit-modal').show();
       },
-      error: function(xhr, status, error) {
-        alert('Error: ' + xhr.responseJSON.error);
+      error: function(xhr) {
+        showModal('Error', 'Error: ' + xhr.responseJSON.error, [
+          {text: 'OK', class: 'btn-primary', click: function() { closeModal(); }}
+        ]);
       }
     });
   });
@@ -206,43 +214,78 @@ $(document).ready(function() {
       url: '/url/' + shortCode,
       method: 'PUT',
       data: $(this).serialize(),
-      success: function(response) {
-        alert('URL updated successfully!');
-        location.reload();
+      success: function() {
+        showModal('Success', 'URL updated successfully!', [
+          {text: 'OK', class: 'btn-primary', click: function() { location.reload(); }}
+        ]);
       },
-      error: function(xhr, status, error) {
-        alert('Error: ' + xhr.responseJSON.error);
+      error: function(xhr) {
+        showModal('Error', 'Error: ' + xhr.responseJSON.error, [
+          {text: 'OK', class: 'btn-primary', click: function() { closeModal(); }}
+        ]);
       }
     });
   });
 
-  // Delete URL
-  $('.delete-url').click(function() {
+  // Universal modal opener
+  $('.open-modal').click(function() {
+    var modalType = $(this).data('modal');
     var shortCode = $(this).data('short-code');
-    if (confirm('Are you sure you want to delete this URL?')) {
-      $.ajax({
-        url: '/url/' + shortCode,
-        method: 'DELETE',
-        success: function(response) {
-          alert('URL deleted successfully!');
-          location.reload();
-        },
-        error: function(xhr, status, error) {
-          alert('Error: ' + xhr.responseJSON.error);
-        }
-      });
+    
+    if (modalType === 'delete') {
+      showModal('Confirm Deletion', 'Are you sure you want to delete this URL?<br>Short Code: <span class="highlight">' + shortCode + '</span>', [
+        {text: 'Delete', class: 'btn-primary', click: function() { deleteUrl(shortCode); }},
+        {text: 'Cancel', class: 'btn-secondary', click: function() { closeModal(); }}
+      ]);
     }
   });
 
   // Close modals
   $('.close-modal').click(function() {
-    $('.modal').hide();
+    closeModal();
   });
 
   $(window).click(function(event) {
     if ($(event.target).hasClass('modal')) {
-      $('.modal').hide();
+      closeModal();
     }
   });
+
+  // Universal modal functions
+  function showModal(title, body, actions) {
+    $('#modal-title').html(title);
+    $('#modal-body').html(body);
+    $('#modal-actions').empty();
+    actions.forEach(function(action) {
+      $('<button>')
+        .text(action.text)
+        .addClass('btn ' + action.class)
+        .click(action.click)
+        .appendTo('#modal-actions');
+    });
+    $('#universal-modal').show();
+  }
+
+  function closeModal() {
+    $('.modal').hide();
+  }
+
+  // Delete URL function
+  function deleteUrl(shortCode) {
+    $.ajax({
+      url: '/url/' + shortCode,
+      method: 'DELETE',
+      success: function() {
+        showModal('Success', 'URL deleted successfully!', [
+          {text: 'OK', class: 'btn-primary', click: function() { location.reload(); }}
+        ]);
+      },
+      error: function(xhr) {
+        showModal('Error', 'Error: ' + xhr.responseJSON.error, [
+          {text: 'OK', class: 'btn-primary', click: function() { closeModal(); }}
+        ]);
+      }
+    });
+  }
 });
 </script>

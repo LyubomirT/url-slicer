@@ -318,6 +318,10 @@ select:focus {
   cursor: pointer;
 }
 
+#modal-body {
+  margin-bottom: 20px;
+}
+
 .feather {
   width: 24px;
   height: 24px;
@@ -518,4 +522,10 @@ select:focus {
 
 .tab-content.active {
   display: block;
+}
+
+.highlight {
+  background-color: rgba(255, 107, 53, 0.1);
+  padding: 5px;
+  border-radius: 4px;
 }
