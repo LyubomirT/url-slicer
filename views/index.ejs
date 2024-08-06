@@ -1,9 +1,83 @@
-<h1>Welcome to URL Slicer</h1>
-<% if (typeof user !== 'undefined' && user) { %>
-  <p>Hello, <%= user.email %>!</p>
-  <a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
-<% } else { %>
-  <p>Shorten and manage your URLs with ease.</p>
-  <a href="/login" class="btn btn-primary">Login</a>
-  <a href="/register" class="btn btn-secondary">Register</a>
-<% } %>
+<h1 class="main-title">Welcome to URL Slicer</h1>
+
+<div class="hero-section">
+  <div class="hero-content">
+    <h2 class="hero-subtitle">Simplify Your Links, Amplify Your Reach</h2>
+    <p class="hero-description">URL Slicer is your go-to tool for creating shorter, more manageable links. Whether you're sharing on social media, sending emails, or managing marketing campaigns, our powerful URL shortener has got you covered.</p>
+    
+    <% if (typeof user !== 'undefined' && user) { %>
+      <p class="welcome-message">Hello, <span class="user-email"><%= user.email %></span>!</p>
+      <a href="/dashboard" class="btn btn-primary btn-large">Go to Dashboard</a>
+    <% } else { %>
+      <div class="cta-buttons">
+        <a href="/login" class="btn btn-primary btn-large">Login</a>
+        <a href="/register" class="btn btn-secondary btn-large">Register</a>
+      </div>
+    <% } %>
+  </div>
+  <div class="hero-image">
+    <img src="/api/placeholder/500/300" alt="URL Shortening Concept" class="hero-img">
+  </div>
+</div>
+
+<div class="features-section">
+  <h2 class="section-title">Why Choose URL Slicer?</h2>
+  <div class="features-grid">
+    <div class="feature-card">
+      <i data-feather="link" class="feature-icon"></i>
+      <h3 class="feature-title">Custom Short Links</h3>
+      <p class="feature-description">Create memorable, branded short links that reflect your identity.</p>
+    </div>
+    <div class="feature-card">
+      <i data-feather="bar-chart-2" class="feature-icon"></i>
+      <h3 class="feature-title">Detailed Analytics</h3>
+      <p class="feature-description">Track clicks, analyze traffic sources, and measure your link performance.</p>
+    </div>
+    <div class="feature-card">
+      <i data-feather="shield" class="feature-icon"></i>
+      <h3 class="feature-title">Advanced Security</h3>
+      <p class="feature-description">Set expiration dates, usage limits, and geo-restrictions for your links.</p>
+    </div>
+    <div class="feature-card">
+      <i data-feather="smartphone" class="feature-icon"></i>
+      <h3 class="feature-title">Mobile Friendly</h3>
+      <p class="feature-description">Manage your links on-the-go with our responsive design.</p>
+    </div>
+  </div>
+</div>
+
+<div class="how-it-works-section">
+  <h2 class="section-title">How It Works</h2>
+  <div class="steps-container">
+    <div class="step">
+      <div class="step-number">1</div>
+      <h3 class="step-title">Sign Up</h3>
+      <p class="step-description">Create your free account in seconds.</p>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <h3 class="step-title">Paste Your URL</h3>
+      <p class="step-description">Enter the long URL you want to shorten.</p>
+    </div>
+    <div class="step">
+      <div class="step-number">3</div>
+      <h3 class="step-title">Customize</h3>
+      <p class="step-description">Add custom options and restrictions if needed.</p>
+    </div>
+    <div class="step">
+      <div class="step-number">4</div>
+      <h3 class="step-title">Share</h3>
+      <p class="step-description">Copy your short URL and share it anywhere!</p>
+    </div>
+  </div>
+</div>
+
+<div class="cta-section">
+  <h2 class="cta-title">Ready to Slice Your URLs?</h2>
+  <p class="cta-description">Join thousands of users who trust URL Slicer for their link management needs.</p>
+  <a href="/register" class="btn btn-primary btn-large">Get Started Now</a>
+</div>
+
+<script>
+  feather.replace();
+</script>
