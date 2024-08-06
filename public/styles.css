@@ -299,6 +299,9 @@ select:focus {
   box-shadow: 0 8px 30px rgba(255, 107, 53, 0.2);
 }
 
+#edit-modal .modal-content {
+  margin: 20px auto;
+}
 
 .close-modal {
   color: #aaa;
