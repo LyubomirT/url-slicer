@@ -10,7 +10,7 @@ const shortid = require('shortid');
 const geoip = require('geoip-lite');
 const expressLayouts = require('express-ejs-layouts');
 const dotenv = require('dotenv');
-const { emit } = require('process');
+const crypto = require('crypto');
 dotenv.config();
 
 const app = express();
@@ -24,7 +24,8 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE,
   password TEXT,
-  verified BOOLEAN
+  verified BOOLEAN,
+  verification_token TEXT
 )`);
 
 // Create urls table if not exists
@@ -55,7 +56,7 @@ db.run(`CREATE TABLE IF NOT EXISTS clicks (
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(expressLayouts);
-app.set('layout', 'layout'); // This sets layout.ejs as the default layout
+app.set('layout', 'layout');
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -94,6 +95,7 @@ passport.deserializeUser((id, done) => {
     done(err, user);
   });
 });
+
 // Nodemailer configuration
 const transporter = nodemailer.createTransport({
   host: 'smtp.office365.com',
@@ -104,7 +106,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.password
   }
 });
-
 
 // Routes
 app.get('/', (req, res) => {
@@ -133,49 +134,44 @@ app.get('/register', (req, res) => {
 app.post('/register', async (req, res) => {
   const { email, password } = req.body;
   const hashedPassword = await bcrypt.hash(password, 10);
+  const verificationToken = crypto.randomBytes(32).toString('hex');
   
-  db.run('INSERT INTO users (email, password, verified) VALUES (?, ?, ?)', [email, hashedPassword, false], (err) => {
-    if (err) {
-      return res.render('register', { error: 'Email already exists' });
+  db.run('INSERT INTO users (email, password, verified, verification_token) VALUES (?, ?, ?, ?)', 
+    [email, hashedPassword, false, verificationToken], 
+    (err) => {
+      if (err) {
+        return res.render('register', { error: 'Email already exists' });
+      }
+      
+      // Send verification email
+      const verificationLink = `http://localhost:${port}/verify/${verificationToken}`;
+      const mailOptions = {
+        from: process.env.login,
+        to: email,
+        subject: 'Verify your email for URL Slicer',
+        text: `Please click on this link to verify your email: ${verificationLink}`
+      };
+      
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.log(error);
+          res.render('register', { error: 'Error sending email' });
+        } else {
+          console.log('Email sent: ' + info.response);
+          res.redirect('/register-confirmation');
+        }
+      });
     }
-    
-    // Send verification email
-    const verificationLink = `http://localhost:${port}/verify?email=${email}`;
-    const mailOptions = {
-      from: process.env.login,
-      to: email,
-      subject: 'Verify your email for URL Slicer',
-      text: `Please click on this link to verify your email: ${verificationLink}`
-    };
-    
-    transporter.sendMail(mailOptions, async (error, info) => {
-      var isSuccess;
-      if (error) {
-        console.log(error);
-        isSuccess = false;
-      } else {
-        isSuccess = true;
-        console.log('Email sent.');
-      }
-
-      if (isSuccess) {
-        res.redirect('/register-confirmation' + '?email=' + email);
-      } else {
-        res.render('register', { error: 'Error sending email' });
-      }
-
-      return true;
-    });
-  });
+  );
 });
 
 app.get('/register-confirmation', (req, res) => {
-  res.render('register-confirmation', { email: req.query.email });
+  res.render('register-confirmation');
 });
 
-app.get('/verify', (req, res) => {
-  const { email } = req.query;
-  db.run('UPDATE users SET verified = ? WHERE email = ?', [true, email], (err) => {
+app.get('/verify/:token', (req, res) => {
+  const { token } = req.params;
+  db.run('UPDATE users SET verified = ? WHERE verification_token = ?', [true, token], (err) => {
     if (err) {
       return res.send('Error verifying email');
     }
@@ -343,8 +339,6 @@ app.delete('/url/:shortCode', (req, res) => {
     res.json({ message: 'URL deleted successfully' });
   });
 });
-
-
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
