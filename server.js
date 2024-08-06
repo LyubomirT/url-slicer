@@ -366,6 +366,18 @@ app.delete('/url/:code', (req, res) => {
   });
 });
 
+app.get('/find/:code', (req, res) => {
+  const { code } = req.params;
+  db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], (err, url) => {
+    if (err || !url) {
+      return res.status(404).json({ error: 'URL not found' });
+    }
+    // construct the full URL
+    const fullUrl = `${req.protocol}://${req.get('host')}/${url.short_code}`;
+    res.json({ fullUrl });
+  });
+});
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });

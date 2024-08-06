@@ -20,7 +20,7 @@
       </div>
       <div class="form-group">
         <label for="max-uses">Max Uses:</label>
-        <input type="number" id="max-uses" name="maxUses" min="1">
+        <input type="number" id="max-uses" name="maxUses" min="1" required>
       </div>
       <div class="form-group">
         <label for="auto-delete-at">Auto Delete At:</label>
@@ -63,6 +63,7 @@
             <button class="btn btn-secondary view-stats" data-short-code="<%= url.custom_alias || url.short_code %>">View Stats</button>
             <button class="btn btn-secondary edit-url" data-short-code="<%= url.custom_alias || url.short_code %>">Edit</button>
             <button class="btn btn-secondary open-modal" data-modal="delete" data-short-code="<%= url.custom_alias || url.short_code %>">Delete</button>
+            <button class="btn btn-secondary" id="copy-button" data-short-code="<%= url.custom_alias || url.short_code %>">Copy</button>
           </div>
         </li>
       <% }); %>
@@ -292,5 +293,32 @@ $(document).ready(function() {
       }
     });
   }
+
+  // Copy to clipboard
+  $('#copy-button').click(function() {
+    var shortCode = $(this).data('short-code');
+    var dummy = document.createElement('input');
+    document.body.appendChild(dummy);
+    // get the base URL and append the short code by sending a request to the /find/:shortCode endpoint
+    $.ajax({
+      url: '/find/' + shortCode,
+      method: 'GET',
+      success: function(response) {
+        dummy.value = response.fullUrl;
+        dummy.select();
+        document.execCommand('copy');
+        document.body.removeChild(dummy);
+        showModal('Success', 'Short URL copied to clipboard!', [
+          {text: 'OK', class: 'btn-primary', click: function() { closeModal(); }}
+        ]);
+      },
+      error: function(xhr) {
+        showModal('Error', 'Error: ' + xhr.responseJSON.error, [
+          {text: 'OK', class: 'btn-primary', click: function() { closeModal(); }}
+        ]);
+      }
+    });
+  });
+
 });
 </script>
