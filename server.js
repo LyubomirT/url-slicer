@@ -112,6 +112,16 @@ app.get('/login', (req, res) => {
   res.render('login');
 });
 
+app.get('/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      console.error('Error during logout:', err);
+      return res.status(500).send('Error logging out');
+    }
+    res.redirect('/');
+  });
+});
+
 app.post('/login', passport.authenticate('local', {
   successRedirect: '/dashboard',
   failureRedirect: '/login'
@@ -319,12 +329,6 @@ app.delete('/url/:shortCode', (req, res) => {
       return res.status(404).json({ error: 'URL not found' });
     }
     res.json({ message: 'URL deleted successfully' });
-  });
-});
-
-app.get('/logout', (req, res) => {
-  req.logout(() => {
-    res.redirect('/');
   });
 });
 
