@@ -10,7 +10,7 @@ const shortid = require('shortid');
 const expressLayouts = require('express-ejs-layouts');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
-const axios = require('axios'); // Add this line to import axios
+const axios = require('axios');
 dotenv.config();
 
 const app = express();
@@ -28,12 +28,13 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
   verification_token TEXT
 )`);
 
-// Create urls table if not exists
+// Create urls table if not exists (updated to include custom_alias)
 db.run(`CREATE TABLE IF NOT EXISTS urls (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER,
   original_url TEXT,
   short_code TEXT UNIQUE,
+  custom_alias TEXT UNIQUE,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   max_uses INTEGER,
   auto_delete_at DATETIME,
@@ -197,25 +198,43 @@ app.post('/shorten', (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { originalUrl, maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries } = req.body;
-  const shortCode = shortid.generate();
+  const { originalUrl, maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, customAlias } = req.body;
+  const shortCode = customAlias || shortid.generate();
 
-  db.run(
-    'INSERT INTO urls (user_id, original_url, short_code, max_uses, auto_delete_at, whitelist_mode, allowed_countries, blocked_countries) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [req.user.id, originalUrl, shortCode, maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries],
-    function(err) {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Error creating shortened URL' });
-      }
-      res.json({ shortCode: shortCode });
+  // Check if the custom alias is valid (3-50 symbols)
+  if (customAlias && (customAlias.length < 3 || customAlias.length > 50)) {
+    return res.status(400).json({ error: 'Custom alias must be between 3 and 50 symbols' });
+  }
+
+  // Check if the custom alias or short code is already taken
+  db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [shortCode, customAlias], (err, existingUrl) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'Error checking for existing URL' });
     }
-  );
+
+    if (existingUrl) {
+      return res.status(400).json({ error: 'The custom alias or generated short code is already taken' });
+    }
+
+    // If the alias is not taken, proceed with creating the URL
+    db.run(
+      'INSERT INTO urls (user_id, original_url, short_code, custom_alias, max_uses, auto_delete_at, whitelist_mode, allowed_countries, blocked_countries) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.id, originalUrl, shortCode, customAlias, maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries],
+      function(err) {
+        if (err) {
+          console.error(err);
+          return res.status(500).json({ error: 'Error creating shortened URL' });
+        }
+        res.json({ shortCode: shortCode, customAlias: customAlias });
+      }
+    );
+  });
 });
 
-app.get('/:shortCode', async (req, res) => {
-  const { shortCode } = req.params;
-  db.get('SELECT * FROM urls WHERE short_code = ?', [shortCode], async (err, url) => {
+app.get('/:code', async (req, res) => {
+  const { code } = req.params;
+  db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], async (err, url) => {
     if (err || !url) {
       return res.status(404).send('URL not found');
     }
@@ -269,13 +288,13 @@ function recordClickAndRedirect(url, country, res) {
   });
 }
 
-app.get('/stats/:shortCode', (req, res) => {
+app.get('/stats/:code', (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { shortCode } = req.params;
-  db.get('SELECT * FROM urls WHERE short_code = ? AND user_id = ?', [shortCode, req.user.id], (err, url) => {
+  const { code } = req.params;
+  db.get('SELECT * FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], (err, url) => {
     if (err || !url) {
       return res.status(404).json({ error: 'URL not found' });
     }
@@ -290,13 +309,13 @@ app.get('/stats/:shortCode', (req, res) => {
   });
 });
 
-app.get('/url/:shortCode', (req, res) => {
+app.get('/url/:code', (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { shortCode } = req.params;
-  db.get('SELECT * FROM urls WHERE short_code = ? AND user_id = ?', [shortCode, req.user.id], (err, url) => {
+  const { code } = req.params;
+  db.get('SELECT * FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], (err, url) => {
     if (err || !url) {
       return res.status(404).json({ error: 'URL not found' });
     }
@@ -304,17 +323,17 @@ app.get('/url/:shortCode', (req, res) => {
   });
 });
 
-app.put('/url/:shortCode', (req, res) => {
+app.put('/url/:code', (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { shortCode } = req.params;
+  const { code } = req.params;
   const { maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries } = req.body;
 
   db.run(
-    'UPDATE urls SET max_uses = ?, auto_delete_at = ?, whitelist_mode = ?, allowed_countries = ?, blocked_countries = ? WHERE short_code = ? AND user_id = ?',
-    [maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, shortCode, req.user.id],
+    'UPDATE urls SET max_uses = ?, auto_delete_at = ?, whitelist_mode = ?, allowed_countries = ?, blocked_countries = ? WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?',
+    [maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, code, code, req.user.id],
     function(err) {
       if (err) {
         console.error(err);
@@ -328,14 +347,14 @@ app.put('/url/:shortCode', (req, res) => {
   );
 });
 
-app.delete('/url/:shortCode', (req, res) => {
+app.delete('/url/:code', (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { shortCode } = req.params;
+  const { code } = req.params;
 
-  db.run('DELETE FROM urls WHERE short_code = ? AND user_id = ?', [shortCode, req.user.id], function(err) {
+  db.run('DELETE FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], function(err) {
     if (err) {
       console.error(err);
       return res.status(500).json({ error: 'Error deleting URL' });

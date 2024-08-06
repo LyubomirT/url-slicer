@@ -15,6 +15,10 @@
         <input type="url" id="original-url" name="originalUrl" required>
       </div>
       <div class="form-group">
+        <label for="custom-alias">Custom Alias (optional, 3-50 symbols):</label>
+        <input type="text" id="custom-alias" name="customAlias" minlength="3" maxlength="50" pattern="[a-zA-Z0-9-_]+">
+      </div>
+      <div class="form-group">
         <label for="max-uses">Max Uses:</label>
         <input type="number" id="max-uses" name="maxUses" min="1">
       </div>
@@ -48,7 +52,7 @@
       <% urls.forEach(function(url) { %>
         <li class="url-item">
           <h3><%= url.original_url %></h3>
-          <p>Short URL: <a href="/<%= url.short_code %>" target="_blank"><%= url.short_code %></a></p>
+          <p>Short URL: <a href="/<%= url.custom_alias || url.short_code %>" target="_blank"><%= url.custom_alias || url.short_code %></a></p>
           <p>Created: <%= new Date(url.created_at).toLocaleString() %></p>
           <p>Max Uses: <%= url.max_uses || 'Unlimited' %></p>
           <p>Auto Delete At: <%= url.auto_delete_at ? new Date(url.auto_delete_at).toLocaleString() : 'Never' %></p>
@@ -56,9 +60,9 @@
           <p>Allowed Countries: <%= url.allowed_countries || 'All' %></p>
           <p>Blocked Countries: <%= url.blocked_countries || 'None' %></p>
           <div class="url-actions">
-            <button class="btn btn-secondary view-stats" data-short-code="<%= url.short_code %>">View Stats</button>
-            <button class="btn btn-secondary edit-url" data-short-code="<%= url.short_code %>">Edit</button>
-            <button class="btn btn-secondary open-modal" data-modal="delete" data-short-code="<%= url.short_code %>">Delete</button>
+            <button class="btn btn-secondary view-stats" data-short-code="<%= url.custom_alias || url.short_code %>">View Stats</button>
+            <button class="btn btn-secondary edit-url" data-short-code="<%= url.custom_alias || url.short_code %>">Edit</button>
+            <button class="btn btn-secondary open-modal" data-modal="delete" data-short-code="<%= url.custom_alias || url.short_code %>">Delete</button>
           </div>
         </li>
       <% }); %>
@@ -139,7 +143,8 @@ $(document).ready(function() {
       method: 'POST',
       data: $(this).serialize(),
       success: function(response) {
-        showModal('URL Shortened', 'URL shortened successfully! Short code: ' + response.shortCode, [
+        var shortUrl = response.customAlias || response.shortCode;
+        showModal('URL Shortened', 'URL shortened successfully! Short URL: ' + shortUrl, [
           {text: 'OK', class: 'btn-primary', click: function() { location.reload(); }}
         ]);
       },
@@ -151,7 +156,7 @@ $(document).ready(function() {
     });
   });
 
-  // View stats (Exception)
+  // View stats
   $('.view-stats').click(function() {
     var shortCode = $(this).data('short-code');
     $.ajax({
@@ -184,7 +189,7 @@ $(document).ready(function() {
     });
   });
 
-  // Edit URL (Exception)
+  // Edit URL
   $('.edit-url').click(function() {
     var shortCode = $(this).data('short-code');
     $.ajax({
@@ -233,7 +238,7 @@ $(document).ready(function() {
     var shortCode = $(this).data('short-code');
     
     if (modalType === 'delete') {
-      showModal('Confirm Deletion', 'Are you sure you want to delete this URL?<br>Short Code: <span class="highlight">' + shortCode + '</span>', [
+      showModal('Confirm Deletion', 'Are you sure you want to delete this URL?<br>Short URL: <span class="highlight">' + shortCode + '</span>', [
         {text: 'Delete', class: 'btn-primary', click: function() { deleteUrl(shortCode); }},
         {text: 'Cancel', class: 'btn-secondary', click: function() { closeModal(); }}
       ]);

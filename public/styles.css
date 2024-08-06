@@ -141,6 +141,7 @@ a:hover {
 
 .btn-primary:hover {
   background-color: var(--primary-dark);
+  color: var(--text-light);
 }
 
 .btn-secondary {
@@ -150,6 +151,7 @@ a:hover {
 
 .btn-secondary:hover {
   background-color: var(--secondary-dark);
+  color: var(--text-light);
 }
 
 .panel {
