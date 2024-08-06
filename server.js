@@ -7,10 +7,10 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const nodemailer = require('nodemailer');
 const shortid = require('shortid');
-const geoip = require('geoip-lite');
 const expressLayouts = require('express-ejs-layouts');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
+const axios = require('axios'); // Add this line to import axios
 dotenv.config();
 
 const app = express();
@@ -213,42 +213,49 @@ app.post('/shorten', (req, res) => {
   );
 });
 
-app.get('/:shortCode', (req, res) => {
+app.get('/:shortCode', async (req, res) => {
   const { shortCode } = req.params;
-  db.get('SELECT * FROM urls WHERE short_code = ?', [shortCode], (err, url) => {
+  db.get('SELECT * FROM urls WHERE short_code = ?', [shortCode], async (err, url) => {
     if (err || !url) {
       return res.status(404).send('URL not found');
     }
 
     const ip = req.ip;
-    const geo = geoip.lookup(ip);
-    const country = geo ? geo.country : 'Unknown';
+    console.log('IP:', ip);
+    try {
+      const response = await axios.get(`http://ip-api.com/json/${ip}`);
+      console.log(response.data);
+      const country = response.data.countryCode;
 
-    if (url.whitelist_mode) {
-      const allowedCountries = url.allowed_countries ? url.allowed_countries.split(',') : [];
-      if (!allowedCountries.includes(country)) {
-        return res.status(403).send('Access denied from your country');
+      if (url.whitelist_mode) {
+        const allowedCountries = url.allowed_countries ? url.allowed_countries.split(',') : [];
+        if (!allowedCountries.includes(country)) {
+          return res.status(403).send('Access denied from your country');
+        }
+      } else {
+        const blockedCountries = url.blocked_countries ? url.blocked_countries.split(',') : [];
+        if (blockedCountries.includes(country)) {
+          return res.status(403).send('Access denied from your country');
+        }
       }
-    } else {
-      const blockedCountries = url.blocked_countries ? url.blocked_countries.split(',') : [];
-      if (blockedCountries.includes(country)) {
-        return res.status(403).send('Access denied from your country');
-      }
-    }
 
-    if (url.max_uses !== null) {
-      db.get('SELECT COUNT(*) as click_count FROM clicks WHERE url_id = ?', [url.id], (err, result) => {
-        if (err) {
-          console.error(err);
-          return res.status(500).send('Error checking click count');
-        }
-        if (result.click_count >= url.max_uses) {
-          return res.status(410).send('This link has reached its maximum number of uses');
-        }
+      if (url.max_uses !== null) {
+        db.get('SELECT COUNT(*) as click_count FROM clicks WHERE url_id = ?', [url.id], (err, result) => {
+          if (err) {
+            console.error(err);
+            return res.status(500).send('Error checking click count');
+          }
+          if (result.click_count >= url.max_uses) {
+            return res.status(410).send('This link has reached its maximum number of uses');
+          }
+          recordClickAndRedirect(url, country, res);
+        });
+      } else {
         recordClickAndRedirect(url, country, res);
-      });
-    } else {
-      recordClickAndRedirect(url, country, res);
+      }
+    } catch (error) {
+      console.error('Error fetching country information:', error);
+      return res.status(500).send('Error processing your request');
     }
   });
 });
