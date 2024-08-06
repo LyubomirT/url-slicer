@@ -486,3 +486,36 @@ select:focus {
   visibility: visible;
   opacity: 1;
 }
+.dashboard-tabs {
+  display: flex;
+  margin-bottom: 20px;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 10px 20px;
+  background-color: var(--background-color);
+  border: none;
+  border-bottom: 2px solid var(--border-color);
+  cursor: pointer;
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+.tab-button.active {
+  background-color: var(--panel-color);
+  border-bottom: 2px solid var(--primary-color);
+  color: var(--primary-color);
+}
+
+.tab-button:hover {
+  background-color: var(--panel-color);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}

@@ -1,58 +1,69 @@
 <h1>Dashboard</h1>
 <p>Welcome, <%= user.email %>!</p>
 
-<div class="panel">
-  <h2>Shorten a URL</h2>
-  <form id="shorten-form">
-    <div class="form-group">
-      <label for="original-url">Original URL:</label>
-      <input type="url" id="original-url" name="originalUrl" required>
-    </div>
-    <div class="form-group">
-      <label for="max-uses">Max Uses:</label>
-      <input type="number" id="max-uses" name="maxUses" min="1">
-    </div>
-    <div class="form-group">
-      <label for="auto-delete-at">Auto Delete At:</label>
-      <input type="datetime-local" id="auto-delete-at" name="autoDeleteAt">
-    </div>
-    <div class="form-group">
-      <label for="whitelist-mode">
-        <input type="checkbox" id="whitelist-mode" name="whitelistMode">
-        Whitelist Mode
-      </label>
-    </div>
-    <div class="form-group">
-      <label for="allowed-countries">Allowed Countries (comma-separated):</label>
-      <input type="text" id="allowed-countries" name="allowedCountries">
-    </div>
-    <div class="form-group">
-      <label for="blocked-countries">Blocked Countries (comma-separated):</label>
-      <input type="text" id="blocked-countries" name="blockedCountries">
-    </div>
-    <button type="submit" class="btn btn-primary">Shorten URL</button>
-  </form>
+<div class="dashboard-tabs">
+  <button id="shortener-tab" class="tab-button active">URL Shortener</button>
+  <button id="urls-tab" class="tab-button">Shortened URLs</button>
 </div>
 
-<div class="panel">
-  <h2>Your Shortened URLs</h2>
-  <ul class="url-list">
-    <% urls.forEach(function(url) { %>
-      <li class="url-item">
-        <h3><%= url.original_url %></h3>
-        <p>Short URL: <a href="/<%= url.short_code %>" target="_blank"><%= url.short_code %></a></p>
-        <p>Created: <%= new Date(url.created_at).toLocaleString() %></p>
-        <p>Max Uses: <%= url.max_uses || 'Unlimited' %></p>
-        <p>Auto Delete At: <%= url.auto_delete_at ? new Date(url.auto_delete_at).toLocaleString() : 'Never' %></p>
-        <p>Whitelist Mode: <%= url.whitelist_mode ? 'On' : 'Off' %></p>
-        <p>Allowed Countries: <%= url.allowed_countries || 'All' %></p>
-        <p>Blocked Countries: <%= url.blocked_countries || 'None' %></p>
-        <button class="btn btn-secondary view-stats" data-short-code="<%= url.short_code %>">View Stats</button>
-        <button class="btn btn-secondary edit-url" data-short-code="<%= url.short_code %>">Edit</button>
-        <button class="btn btn-secondary delete-url" data-short-code="<%= url.short_code %>">Delete</button>
-      </li>
-    <% }); %>
-  </ul>
+<div id="shortener-content" class="tab-content">
+  <div class="panel">
+    <h2>Shorten a URL</h2>
+    <form id="shorten-form">
+      <div class="form-group">
+        <label for="original-url">Original URL:</label>
+        <input type="url" id="original-url" name="originalUrl" required>
+      </div>
+      <div class="form-group">
+        <label for="max-uses">Max Uses:</label>
+        <input type="number" id="max-uses" name="maxUses" min="1">
+      </div>
+      <div class="form-group">
+        <label for="auto-delete-at">Auto Delete At:</label>
+        <input type="datetime-local" id="auto-delete-at" name="autoDeleteAt">
+      </div>
+      <div class="form-group">
+        <label for="whitelist-mode">
+          <input type="checkbox" id="whitelist-mode" name="whitelistMode">
+          Whitelist Mode
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="allowed-countries">Allowed Countries (comma-separated):</label>
+        <input type="text" id="allowed-countries" name="allowedCountries">
+      </div>
+      <div class="form-group">
+        <label for="blocked-countries">Blocked Countries (comma-separated):</label>
+        <input type="text" id="blocked-countries" name="blockedCountries">
+      </div>
+      <button type="submit" class="btn btn-primary">Shorten URL</button>
+    </form>
+  </div>
+</div>
+
+<div id="urls-content" class="tab-content" style="display: none;">
+  <div class="panel">
+    <h2>Your Shortened URLs</h2>
+    <ul class="url-list">
+      <% urls.forEach(function(url) { %>
+        <li class="url-item">
+          <h3><%= url.original_url %></h3>
+          <p>Short URL: <a href="/<%= url.short_code %>" target="_blank"><%= url.short_code %></a></p>
+          <p>Created: <%= new Date(url.created_at).toLocaleString() %></p>
+          <p>Max Uses: <%= url.max_uses || 'Unlimited' %></p>
+          <p>Auto Delete At: <%= url.auto_delete_at ? new Date(url.auto_delete_at).toLocaleString() : 'Never' %></p>
+          <p>Whitelist Mode: <%= url.whitelist_mode ? 'On' : 'Off' %></p>
+          <p>Allowed Countries: <%= url.allowed_countries || 'All' %></p>
+          <p>Blocked Countries: <%= url.blocked_countries || 'None' %></p>
+          <div class="url-actions">
+            <button class="btn btn-secondary view-stats" data-short-code="<%= url.short_code %>">View Stats</button>
+            <button class="btn btn-secondary edit-url" data-short-code="<%= url.short_code %>">Edit</button>
+            <button class="btn btn-secondary delete-url" data-short-code="<%= url.short_code %>">Delete</button>
+          </div>
+        </li>
+      <% }); %>
+    </ul>
+  </div>
 </div>
 
 <div id="stats-modal" class="modal">
@@ -98,6 +109,24 @@
 
 <script>
 $(document).ready(function() {
+  // Tab functionality
+  $('#shortener-tab').click(function() {
+    $('#shortener-content').show();
+    $('#urls-content').hide();
+    $('.tab-button').removeClass('active');
+    $(this).addClass('active');
+  });
+
+  $('#urls-tab').click(function() {
+    $('#urls-content').show();
+    $('#shortener-content').hide();
+    $('.tab-button').removeClass('active');
+    $(this).addClass('active');
+  });
+
+  $('#shortener-tab').click();
+
+  // Form submission
   $('#shorten-form').submit(function(e) {
     e.preventDefault();
     $.ajax({
@@ -114,6 +143,7 @@ $(document).ready(function() {
     });
   });
 
+  // View stats
   $('.view-stats').click(function() {
     var shortCode = $(this).data('short-code');
     $.ajax({
@@ -148,19 +178,19 @@ $(document).ready(function() {
     });
   });
 
+  // Edit URL
   $('.edit-url').click(function() {
     var shortCode = $(this).data('short-code');
     $.ajax({
       url: '/url/' + shortCode,
-      method: 'GET url: /url/' + shortCode,
       method: 'GET',
       success: function(response) {
         $('#edit-short-code').val(shortCode);
-        $('#edit-max-uses').val(response.maxUses);
-        $('#edit-auto-delete-at').val(response.autoDeleteAt);
-        $('#edit-whitelist-mode').prop('checked', response.whitelistMode);
-        $('#edit-allowed-countries').val(response.allowedCountries);
-        $('#edit-blocked-countries').val(response.blockedCountries);
+        $('#edit-max-uses').val(response.max_uses);
+        $('#edit-auto-delete-at').val(response.auto_delete_at);
+        $('#edit-whitelist-mode').prop('checked', response.whitelist_mode);
+        $('#edit-allowed-countries').val(response.allowed_countries);
+        $('#edit-blocked-countries').val(response.blocked_countries);
         $('#edit-modal').show();
       },
       error: function(xhr, status, error) {
@@ -186,6 +216,7 @@ $(document).ready(function() {
     });
   });
 
+  // Delete URL
   $('.delete-url').click(function() {
     var shortCode = $(this).data('short-code');
     if (confirm('Are you sure you want to delete this URL?')) {
@@ -203,6 +234,7 @@ $(document).ready(function() {
     }
   });
 
+  // Close modals
   $('.close-modal').click(function() {
     $('.modal').hide();
   });
