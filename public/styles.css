@@ -330,6 +330,7 @@ select:focus {
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
+  margin: 0 10px 0 0;
 }
 
 /* Additional styles for better aesthetics */
