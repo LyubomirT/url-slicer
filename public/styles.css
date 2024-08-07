@@ -76,7 +76,7 @@ body {
   color: var(--primary-color);
 }
 
-.nav-links a i {
+.nav-links a svg {
   margin-right: 15px;
 }
 
@@ -327,7 +327,6 @@ select:focus {
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
-  margin: 0 10px 0 0;
 }
 
 .dashboard-header {
@@ -851,7 +850,7 @@ select:focus {
   box-shadow: 0 10px 20px rgba(255, 107, 53, 0.1);
 }
 
-.stat-box i {
+.stat-box svg {
   font-size: 36px;
   color: var(--primary-color);
   margin-bottom: 10px;
@@ -919,12 +918,28 @@ select:focus {
   font-size: 14px;
 }
 
-.url-actions .btn i {
+.url-actions .btn svg {
+  margin-right: 5px;
+}
+
+/*Align all items inside buttons with flexbox*/
+.btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 5px;
+}
+
+.btn svg {
+  margin-right: 5px;
+}
+
+a svg {
   margin-right: 5px;
 }
 
 /* Large screens (default) */
-@media (min-width: 1025px) {
+@media (max-width: 1025px) {
   .url-item {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
   }
@@ -958,7 +973,7 @@ select:focus {
     display: none;
   }
 
-  .url-actions .btn i {
+  .url-actions .btn svg {
     margin-right: 0;
   }
 }
@@ -1007,11 +1022,4 @@ select:focus {
 
 .short-url {
   word-break: break-all;
-}
-
-/*Align all items inside buttons with flexbox*/
-.btn {
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
