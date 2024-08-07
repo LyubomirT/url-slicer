@@ -64,6 +64,10 @@
         <label for="blocked-countries">Blocked Countries (comma-separated):</label>
         <input type="text" id="blocked-countries" name="blockedCountries" placeholder="RU, CN">
       </div>
+      <div class="form-group">
+        <label for="password">Password Protection (optional):</label>
+        <input type="password" id="password" name="password" placeholder="Leave blank for no password">
+      </div>
       <button type="submit" class="btn btn-primary">Shorten URL</button>
     </form>
   </div>
@@ -96,6 +100,7 @@
             <p>Whitelist Mode: <%= url.whitelist_mode ? 'On' : 'Off' %></p>
             <p>Allowed Countries: <%= url.allowed_countries || 'All' %></p>
             <p>Blocked Countries: <%= url.blocked_countries || 'None' %></p>
+            <p>Password Protected: <%= url.password ? 'Yes' : 'No' %></p>
           </div>
           <div class="url-actions">
             <button class="btn btn-secondary view-stats" data-short-code="<%= url.custom_alias || url.short_code %>">
@@ -127,7 +132,7 @@
   </div>
 </div>
 
-<!-- Stats Modal (Exception) -->
+<!-- Stats Modal -->
 <div id="stats-modal" class="modal">
   <div class="modal-content panel">
     <span class="close-modal">&times;</span>
@@ -136,7 +141,7 @@
   </div>
 </div>
 
-<!-- Edit Modal (Exception) -->
+<!-- Edit Modal -->
 <div id="edit-modal" class="modal">
   <div class="modal-content panel">
     <span class="close-modal">&times;</span>
@@ -165,6 +170,10 @@
         <label for="edit-blocked-countries">Blocked Countries (comma-separated):</label>
         <input type="text" id="edit-blocked-countries" name="blockedCountries">
       </div>
+      <div class="form-group">
+        <label for="edit-password">Password Protection:</label>
+        <input type="password" id="edit-password" name="password" placeholder="Leave blank to keep current password">
+      </div>
       <button type="submit" class="btn btn-primary">Update URL</button>
     </form>
   </div>
@@ -182,7 +191,7 @@ $(document).ready(function() {
 
   $('#shortener-tab').click();
 
-  // Form submission
+  // Form submission for shortening URLs
   $('#shorten-form').submit(function(e) {
     e.preventDefault();
     $.ajax({
@@ -212,6 +221,7 @@ $(document).ready(function() {
       success: function(response) {
         var statsHtml = '<p>Original URL: ' + response.url.original_url + '</p>';
         statsHtml += '<p>Total Clicks: ' + response.clicks.length + '</p>';
+        statsHtml += '<p>Failed Authentication Attempts: ' + response.failedAttempts + '</p>';
         
         var countryStats = {};
         response.clicks.forEach(function(click) {
@@ -249,6 +259,7 @@ $(document).ready(function() {
         $('#edit-whitelist-mode').prop('checked', response.whitelist_mode);
         $('#edit-allowed-countries').val(response.allowed_countries);
         $('#edit-blocked-countries').val(response.blocked_countries);
+        $('#edit-password').val(''); // Clear password field
         $('#edit-modal').show();
       },
       error: function(xhr) {
@@ -341,11 +352,10 @@ $(document).ready(function() {
   }
 
   // Copy to clipboard
-  $('#copy-button').click(function() {
+  $('.url-actions').on('click', '#copy-button', function() {
     var shortCode = $(this).data('short-code');
     var dummy = document.createElement('input');
     document.body.appendChild(dummy);
-    // get the base URL and append the short code by sending a request to the /find/:shortCode endpoint
     $.ajax({
       url: '/find/' + shortCode,
       method: 'GET',
@@ -366,7 +376,7 @@ $(document).ready(function() {
     });
   });
 
-  // New code to update dashboard stats
+  // Update dashboard stats
   function updateDashboardStats() {
     let totalClicks = 0;
     let countries = new Set();
@@ -387,6 +397,34 @@ $(document).ready(function() {
   }
 
   updateDashboardStats();
+
+  // Toggle whitelist mode
+  $('#whitelist-mode').change(function() {
+    if ($(this).is(':checked')) {
+      $('#blocked-countries').prop('disabled', true).val('');
+      $('#allowed-countries').prop('disabled', false);
+    } else {
+      $('#blocked-countries').prop('disabled', false);
+      $('#allowed-countries').prop('disabled', true).val('');
+    }
+  });
+
+  $('#edit-whitelist-mode').change(function() {
+    if ($(this).is(':checked')) {
+      $('#edit-blocked-countries').prop('disabled', true).val('');
+      $('#edit-allowed-countries').prop('disabled', false);
+    } else {
+      $('#edit-blocked-countries').prop('disabled', false);
+      $('#edit-allowed-countries').prop('disabled', true).val('');
+    }
+  });
+
+  // Initialize whitelist mode state
+  $('#whitelist-mode').trigger('change');
+  $('#edit-whitelist-mode').trigger('change');
+
+  // Refresh stats periodically
+  setInterval(updateDashboardStats, 60000); // Update every minute
 
   // Initialize Feather icons
   feather.replace();

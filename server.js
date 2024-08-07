@@ -34,7 +34,7 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
   verification_token TEXT
 )`);
 
-// Create urls table if not exists
+// Create urls table if not exists (modified to include password field)
 db.run(`CREATE TABLE IF NOT EXISTS urls (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER,
@@ -47,6 +47,7 @@ db.run(`CREATE TABLE IF NOT EXISTS urls (
   whitelist_mode BOOLEAN,
   allowed_countries TEXT,
   blocked_countries TEXT,
+  password TEXT,
   FOREIGN KEY (user_id) REFERENCES users (id)
 )`);
 
@@ -56,6 +57,15 @@ db.run(`CREATE TABLE IF NOT EXISTS clicks (
   url_id INTEGER,
   clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   country TEXT,
+  FOREIGN KEY (url_id) REFERENCES urls (id)
+)`);
+
+// Create failed_attempts table
+db.run(`CREATE TABLE IF NOT EXISTS failed_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url_id INTEGER,
+  attempted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  ip_address TEXT,
   FOREIGN KEY (url_id) REFERENCES urls (id)
 )`);
 
@@ -75,22 +85,50 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Function to delete expired URLs
+// Function to delete expired URLs with enhanced error logging
 function deleteExpiredUrls() {
   const now = new Date().toISOString();
-  db.run(`DELETE FROM clicks WHERE url_id IN (SELECT id FROM urls WHERE auto_delete_at <= ?)`, [now], (err) => {
+  
+  // Delete clicks for expired URLs
+  db.run(`DELETE FROM clicks WHERE url_id IN (
+    SELECT id FROM urls 
+    WHERE auto_delete_at IS NOT NULL 
+    AND auto_delete_at != '' 
+    AND auto_delete_at <= ?
+  )`, [now], (err) => {
     if (err) {
       console.error('Error deleting expired clicks:', err);
+      console.error('Error details:', {
+        message: err.message,
+        code: err.code,
+        errno: err.errno,
+        sql: err.sql
+      });
+      return;
     }
-    db.run(`DELETE FROM urls WHERE auto_delete_at <= ?`, [now], (err) => {
+
+    console.log('Expired clicks deleted successfully');
+
+    // Delete expired URLs
+    db.run(`DELETE FROM urls 
+      WHERE auto_delete_at IS NOT NULL 
+      AND auto_delete_at != '' 
+      AND auto_delete_at <= ?`, [now], (err) => {
       if (err) {
         console.error('Error deleting expired URLs:', err);
+        console.error('Error details:', {
+          message: err.message,
+          code: err.code,
+          errno: err.errno,
+          sql: err.sql
+        });
       } else {
-        console.log('Expired URLs and associated clicks deleted');
+        console.log('Expired URLs deleted successfully');
       }
     });
   });
 }
+
 
 // Run deleteExpiredUrls every minute
 setInterval(deleteExpiredUrls, 60000);
@@ -201,8 +239,6 @@ app.post('/register', async (req, res) => {
           console.log('Email sent: ' + info.response);
           res.redirect('/register-confirmation');
         }
-
-        return res.json({ "message": "User created successfully"})
       });
     }
   );
@@ -240,7 +276,7 @@ app.post('/shorten', (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { originalUrl, maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, customAlias } = req.body;
+  const { originalUrl, maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, customAlias, password } = req.body;
   const shortCode = customAlias || shortid.generate();
 
   // Check if the custom alias is valid (3-50 symbols)
@@ -261,8 +297,8 @@ app.post('/shorten', (req, res) => {
 
     // If the alias is not taken, proceed with creating the URL
     db.run(
-      'INSERT INTO urls (user_id, original_url, short_code, custom_alias, max_uses, auto_delete_at, whitelist_mode, allowed_countries, blocked_countries) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.id, originalUrl, shortCode, customAlias, maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries],
+      'INSERT INTO urls (user_id, original_url, short_code, custom_alias, max_uses, auto_delete_at, whitelist_mode, allowed_countries, blocked_countries, password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.id, originalUrl, shortCode, customAlias, maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, password],
       function(err) {
         if (err) {
           console.error(err);
@@ -294,6 +330,12 @@ app.get('/:code', async (req, res) => {
     }
 
     log('URL found', { url });
+
+    // Check if the URL is password protected
+    if (url.password) {
+      // Render the password entry page
+      return res.render('password-entry', { code: code });
+    }
 
     const ip = req.ip;
     log('Client IP', { ip });
@@ -349,6 +391,57 @@ app.get('/:code', async (req, res) => {
   }
 });
 
+app.post('/:code/verify', async (req, res) => {
+  const { code } = req.params;
+  const { password } = req.body;
+  const ip = req.ip;
+
+  try {
+    const url = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!url) {
+      return res.status(404).json({ error: 'URL not found' });
+    }
+
+    // Check the number of failed attempts in the last 5 minutes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const failedAttempts = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) as count FROM failed_attempts WHERE url_id = ? AND ip_address = ? AND attempted_at > ?', 
+        [url.id, ip, fiveMinutesAgo], (err, row) => {
+        if (err) reject(err);
+        else resolve(row.count);
+      });
+    });
+
+    if (failedAttempts >= 5) {
+      return res.status(429).json({ error: 'Too many failed attempts. Please try again later.' });
+    }
+
+    if (password !== url.password) {
+      // Record failed attempt
+      await new Promise((resolve, reject) => {
+        db.run('INSERT INTO failed_attempts (url_id, ip_address) VALUES (?, ?)', [url.id, ip], (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      return res.status(401).json({ error: 'Incorrect password' });
+    }
+
+    // Password is correct, proceed with redirection
+    res.json({ success: true, redirectUrl: url.original_url });
+
+  } catch (error) {
+    console.error('Error verifying password:', error);
+    res.status(500).json({ error: 'An error occurred while verifying the password' });
+  }
+});
+
 app.get('/stats/:code', (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -365,7 +458,14 @@ app.get('/stats/:code', (req, res) => {
         console.error(err);
         return res.status(500).json({ error: 'Error fetching click statistics' });
       }
-      res.json({ url, clicks });
+
+      db.get('SELECT COUNT(*) as failed_attempts FROM failed_attempts WHERE url_id = ?', [url.id], (err, failedAttempts) => {
+        if (err) {
+          console.error(err);
+          return res.status(500).json({ error: 'Error fetching failed attempts' });
+        }
+        res.json({ url, clicks, failedAttempts: failedAttempts.failed_attempts });
+      });
     });
   });
 });
@@ -390,11 +490,14 @@ app.put('/url/:code', (req, res) => {
   }
 
   const { code } = req.params;
-  const { maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries } = req.body;
+  const { maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, password } = req.body;
+
+  // If autoDeleteAt is an empty string, set it to NULL in the database
+  const autoDeleteAtValue = autoDeleteAt === '' ? null : autoDeleteAt;
 
   db.run(
-    'UPDATE urls SET max_uses = ?, auto_delete_at = ?, whitelist_mode = ?, allowed_countries = ?, blocked_countries = ? WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?',
-    [maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, code, code, req.user.id],
+    'UPDATE urls SET max_uses = ?, auto_delete_at = ?, whitelist_mode = ?, allowed_countries = ?, blocked_countries = ?, password = ? WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?',
+    [maxUses, autoDeleteAtValue, whitelistMode, allowedCountries, blockedCountries, password, code, code, req.user.id],
     function(err) {
       if (err) {
         console.error(err);
@@ -440,16 +543,25 @@ app.delete('/url/:code', (req, res) => {
           return res.status(500).json({ error: 'Error deleting associated clicks' });
         }
 
-        // Now delete the URL
-        db.run('DELETE FROM urls WHERE id = ?', [url.id], function(err) {
+        // Delete associated failed attempts
+        db.run('DELETE FROM failed_attempts WHERE url_id = ?', [url.id], (err) => {
           if (err) {
             db.run('ROLLBACK');
             console.error(err);
-            return res.status(500).json({ error: 'Error deleting URL' });
+            return res.status(500).json({ error: 'Error deleting associated failed attempts' });
           }
 
-          db.run('COMMIT');
-          res.json({ message: 'URL and associated clicks deleted successfully' });
+          // Now delete the URL
+          db.run('DELETE FROM urls WHERE id = ?', [url.id], function(err) {
+            if (err) {
+              db.run('ROLLBACK');
+              console.error(err);
+              return res.status(500).json({ error: 'Error deleting URL' });
+            }
+
+            db.run('COMMIT');
+            res.json({ message: 'URL and associated data deleted successfully' });
+          });
         });
       });
     });
@@ -479,7 +591,12 @@ app.get('/debug/:code', (req, res) => {
       if (err) {
         return res.status(500).json({ error: 'Error fetching click count' });
       }
-      res.json({ url, click_count: result.click_count });
+      db.get('SELECT COUNT(*) as failed_attempts FROM failed_attempts WHERE url_id = ?', [url.id], (err, failedAttempts) => {
+        if (err) {
+          return res.status(500).json({ error: 'Error fetching failed attempts' });
+        }
+        res.json({ url, click_count: result.click_count, failed_attempts: failedAttempts.failed_attempts });
+      });
     });
   });
 });

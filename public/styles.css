@@ -1023,3 +1023,21 @@ a svg {
 .short-url {
   word-break: break-all;
 }
+
+/* Password protection styles */
+.password-protected {
+  color: var(--primary-color);
+  font-weight: bold;
+}
+
+#password-form {
+  max-width: 300px;
+  align-items: left;
+  margin-top: 20px;
+}
+
+#error-message {
+  color: var(--error-color);
+  margin-top: 10px;
+  font-weight: bold;
+}
