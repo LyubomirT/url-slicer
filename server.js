@@ -16,6 +16,9 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Log the current time
+console.log(new Date().toISOString());
+
 // Database setup
 const db = new sqlite3.Database('./database.sqlite', sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE);
 
@@ -71,6 +74,26 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Function to delete expired URLs
+function deleteExpiredUrls() {
+  const now = new Date().toISOString();
+  db.run(`DELETE FROM clicks WHERE url_id IN (SELECT id FROM urls WHERE auto_delete_at <= ?)`, [now], (err) => {
+    if (err) {
+      console.error('Error deleting expired clicks:', err);
+    }
+    db.run(`DELETE FROM urls WHERE auto_delete_at <= ?`, [now], (err) => {
+      if (err) {
+        console.error('Error deleting expired URLs:', err);
+      } else {
+        console.log('Expired URLs and associated clicks deleted');
+      }
+    });
+  });
+}
+
+// Run deleteExpiredUrls every minute
+setInterval(deleteExpiredUrls, 60000);
 
 // Logging function
 function log(message, data = {}) {
