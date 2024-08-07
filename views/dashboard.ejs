@@ -1,5 +1,27 @@
-<h1>Dashboard</h1>
-<p>Welcome, <%= user.email %>!</p>
+<h1>Welcome to Your Dashboard</h1>
+
+<div class="dashboard-welcome panel">
+  <h2>Welcome back, <%= user.email %>!</h2>
+  <p class="welcome-message">Here's an overview of your URL Slicer activity:</p>
+
+  <div class="dashboard-stats">
+    <div class="stat-box">
+      <i data-feather="link"></i>
+      <span class="stat-value"><%= urls.length %></span>
+      <span class="stat-label">Total URLs</span>
+    </div>
+    <div class="stat-box">
+      <i data-feather="bar-chart-2"></i>
+      <span class="stat-value" id="total-clicks">Loading...</span>
+      <span class="stat-label">Total Clicks</span>
+    </div>
+    <div class="stat-box">
+      <i data-feather="globe"></i>
+      <span class="stat-value" id="total-countries">Loading...</span>
+      <span class="stat-label">Countries Reached</span>
+    </div>
+  </div>
+</div>
 
 <div class="dashboard-tabs">
   <button id="shortener-tab" class="tab-button active">URL Shortener</button>
@@ -8,37 +30,39 @@
 
 <div id="shortener-content" class="tab-content">
   <div class="panel">
-    <h2>Shorten a URL</h2>
+    <h2>Shorten a New URL</h2>
     <form id="shorten-form">
       <div class="form-group">
         <label for="original-url">Original URL:</label>
-        <input type="url" id="original-url" name="originalUrl" required>
+        <input type="url" id="original-url" name="originalUrl" required placeholder="https://example.com">
       </div>
       <div class="form-group">
         <label for="custom-alias">Custom Alias (optional, 3-50 symbols):</label>
-        <input type="text" id="custom-alias" name="customAlias" minlength="3" maxlength="50" pattern="[a-zA-Z0-9-_]+">
+        <input type="text" id="custom-alias" name="customAlias" minlength="3" maxlength="50" pattern="[a-zA-Z0-9-_]+" placeholder="my-custom-url">
       </div>
-      <div class="form-group">
-        <label for="max-uses">Max Uses:</label>
-        <input type="number" id="max-uses" name="maxUses" min="1">
-      </div>
-      <div class="form-group">
-        <label for="auto-delete-at">Auto Delete At:</label>
-        <input type="datetime-local" id="auto-delete-at" name="autoDeleteAt">
+      <div class="form-row">
+        <div class="form-col">
+          <label for="max-uses">Max Uses:</label>
+          <input type="number" id="max-uses" name="maxUses" min="1" placeholder="Unlimited">
+        </div>
+        <div class="form-col">
+          <label for="auto-delete-at">Auto Delete At:</label>
+          <input type="datetime-local" id="auto-delete-at" name="autoDeleteAt">
+        </div>
       </div>
       <div class="form-group">
         <label for="whitelist-mode">
           <input type="checkbox" id="whitelist-mode" name="whitelistMode">
-          Whitelist Mode
+          Enable Whitelist Mode
         </label>
       </div>
       <div class="form-group">
         <label for="allowed-countries">Allowed Countries (comma-separated):</label>
-        <input type="text" id="allowed-countries" name="allowedCountries">
+        <input type="text" id="allowed-countries" name="allowedCountries" placeholder="US, CA, UK">
       </div>
       <div class="form-group">
         <label for="blocked-countries">Blocked Countries (comma-separated):</label>
-        <input type="text" id="blocked-countries" name="blockedCountries">
+        <input type="text" id="blocked-countries" name="blockedCountries" placeholder="RU, CN">
       </div>
       <button type="submit" class="btn btn-primary">Shorten URL</button>
     </form>
@@ -48,22 +72,44 @@
 <div id="urls-content" class="tab-content" style="display: none;">
   <div class="panel">
     <h2>Your Shortened URLs</h2>
+    <div class="url-list-header">
+      <span>Original URL</span>
+      <span>Short URL</span>
+      <span>Actions</span>
+    </div>
     <ul class="url-list">
       <% urls.forEach(function(url) { %>
         <li class="url-item">
-          <h3><%= url.original_url %></h3>
-          <p>Short URL: <a href="/<%= url.custom_alias || url.short_code %>" target="_blank"><%= url.custom_alias || url.short_code %></a></p>
-          <p>Created: <%= new Date(url.created_at).toLocaleString() %></p>
-          <p>Max Uses: <%= url.max_uses || 'Unlimited' %></p>
-          <p>Auto Delete At: <%= url.auto_delete_at ? new Date(url.auto_delete_at).toLocaleString() : 'Never' %></p>
-          <p>Whitelist Mode: <%= url.whitelist_mode ? 'On' : 'Off' %></p>
-          <p>Allowed Countries: <%= url.allowed_countries || 'All' %></p>
-          <p>Blocked Countries: <%= url.blocked_countries || 'None' %></p>
+          <div class="url-info">
+            <h3 class="original-url"><%= url.original_url %></h3>
+            <p class="short-url">
+              <a href="/<%= url.custom_alias || url.short_code %>" target="_blank">
+                <%= url.custom_alias || url.short_code %>
+              </a>
+            </p>
+            <p class="click-count" data-short-code="<%= url.custom_alias || url.short_code %>"></p>
+          </div>
+          <div class="url-meta">
+            <p>Created: <%= new Date(url.created_at).toLocaleString() %></p>
+            <p>Max Uses: <%= url.max_uses || 'Unlimited' %></p>
+            <p>Auto Delete: <%= url.auto_delete_at ? new Date(url.auto_delete_at).toLocaleString() : 'Never' %></p>
+            <p>Whitelist Mode: <%= url.whitelist_mode ? 'On' : 'Off' %></p>
+            <p>Allowed Countries: <%= url.allowed_countries || 'All' %></p>
+            <p>Blocked Countries: <%= url.blocked_countries || 'None' %></p>
+          </div>
           <div class="url-actions">
-            <button class="btn btn-secondary view-stats" data-short-code="<%= url.custom_alias || url.short_code %>">View Stats</button>
-            <button class="btn btn-secondary edit-url" data-short-code="<%= url.custom_alias || url.short_code %>">Edit</button>
-            <button class="btn btn-secondary open-modal" data-modal="delete" data-short-code="<%= url.custom_alias || url.short_code %>">Delete</button>
-            <button class="btn btn-secondary" id="copy-button" data-short-code="<%= url.custom_alias || url.short_code %>">Copy</button>
+            <button class="btn btn-secondary view-stats" data-short-code="<%= url.custom_alias || url.short_code %>">
+              <i data-feather="bar-chart-2"></i> <span>Stats</span>
+            </button>
+            <button class="btn btn-secondary edit-url" data-short-code="<%= url.custom_alias || url.short_code %>">
+              <i data-feather="edit"></i> <span>Edit</span>
+            </button>
+            <button class="btn btn-secondary open-modal" data-modal="delete" data-short-code="<%= url.custom_alias || url.short_code %>">
+              <i data-feather="trash-2"></i> <span>Delete</span>
+            </button>
+            <button class="btn btn-secondary" id="copy-button" data-short-code="<%= url.custom_alias || url.short_code %>">
+              <i data-feather="copy"></i> <span>Copy</span>
+            </button>
           </div>
         </li>
       <% }); %>
@@ -320,5 +366,29 @@ $(document).ready(function() {
     });
   });
 
+  // New code to update dashboard stats
+  function updateDashboardStats() {
+    let totalClicks = 0;
+    let countries = new Set();
+
+    $('.click-count').each(function() {
+      const urlId = $(this).data('short-code');
+      $.get('/stats/' + urlId, function(data) {
+        const clicks = data.clicks.length;
+        totalClicks += clicks;
+        $(this).text(clicks + ' clicks');
+
+        data.clicks.forEach(click => countries.add(click.country));
+
+        $('#total-clicks').text(totalClicks);
+        $('#total-countries').text(countries.size);
+      });
+    });
+  }
+
+  updateDashboardStats();
+
+  // Initialize Feather icons
+  feather.replace();
 });
 </script>

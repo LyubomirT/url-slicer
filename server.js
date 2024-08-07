@@ -111,8 +111,17 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    user: process.env.login,
+    pass: process.env.password
+  }
+});
+
+console.log('Verifying transporter connection...');
+transporter.verify(function(error, success) {
+  if (error) {
+    console.log('Transporter verification error:', error);
+  } else {
+    console.log('Transporter is ready to send emails');
   }
 });
 
@@ -155,7 +164,7 @@ app.post('/register', async (req, res) => {
       // Send verification email
       const verificationLink = `http://localhost:${port}/verify/${verificationToken}`;
       const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: process.env.login,
         to: email,
         subject: 'Verify your email for URL Slicer',
         text: `Please click on this link to verify your email: ${verificationLink}`
@@ -169,6 +178,8 @@ app.post('/register', async (req, res) => {
           console.log('Email sent: ' + info.response);
           res.redirect('/register-confirmation');
         }
+
+        return res.json({ "message": "User created successfully"})
       });
     }
   );
@@ -381,15 +392,44 @@ app.delete('/url/:code', (req, res) => {
 
   const { code } = req.params;
 
-  db.run('DELETE FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], function(err) {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error deleting URL' });
-    }
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'URL not found' });
-    }
-    res.json({ message: 'URL deleted successfully' });
+  // Start a transaction
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+
+    // First, get the URL id
+    db.get('SELECT id FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], (err, url) => {
+      if (err) {
+        db.run('ROLLBACK');
+        console.error(err);
+        return res.status(500).json({ error: 'Error finding URL' });
+      }
+
+      if (!url) {
+        db.run('ROLLBACK');
+        return res.status(404).json({ error: 'URL not found' });
+      }
+
+      // Delete associated clicks
+      db.run('DELETE FROM clicks WHERE url_id = ?', [url.id], (err) => {
+        if (err) {
+          db.run('ROLLBACK');
+          console.error(err);
+          return res.status(500).json({ error: 'Error deleting associated clicks' });
+        }
+
+        // Now delete the URL
+        db.run('DELETE FROM urls WHERE id = ?', [url.id], function(err) {
+          if (err) {
+            db.run('ROLLBACK');
+            console.error(err);
+            return res.status(500).json({ error: 'Error deleting URL' });
+          }
+
+          db.run('COMMIT');
+          res.json({ message: 'URL and associated clicks deleted successfully' });
+        });
+      });
+    });
   });
 });
 
