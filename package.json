@@ -21,10 +21,11 @@
         "nodemailer": "^6.9.3",
         "passport": "^0.6.0",
         "passport-local": "^1.0.0",
+        "qrcode": "^1.5.4",
         "shortid": "^2.2.16",
         "sqlite3": "^5.1.6"
     },
     "devDependencies": {
-        "nodemon": "^2.0.22"
+        "nodemon": "^3.1.4"
     }
 }

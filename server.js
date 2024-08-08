@@ -11,6 +11,7 @@ const expressLayouts = require('express-ejs-layouts');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
 const axios = require('axios');
+const QRCode = require('qrcode');
 dotenv.config();
 
 const app = express();
@@ -599,6 +600,36 @@ app.get('/debug/:code', (req, res) => {
       });
     });
   });
+});
+
+// Add this new route for generating QR codes
+app.get('/qr/:code', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { code } = req.params;
+  
+  try {
+    const url = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!url) {
+      return res.status(404).json({ error: 'URL not found' });
+    }
+
+    const fullUrl = `${req.protocol}://${req.get('host')}/${url.short_code}`;
+    const qrCode = await QRCode.toDataURL(fullUrl);
+    
+    res.json({ qrCode });
+  } catch (error) {
+    console.error('Error generating QR code:', error);
+    res.status(500).json({ error: 'An error occurred while generating the QR code' });
+  }
 });
 
 // Error handling middleware

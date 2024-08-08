@@ -26,6 +26,7 @@
 <div class="dashboard-tabs">
   <button id="shortener-tab" class="tab-button active">URL Shortener</button>
   <button id="urls-tab" class="tab-button">Shortened URLs</button>
+  <button id="qr-codes-tab" class="tab-button">QR Codes</button>
 </div>
 
 <div id="shortener-content" class="tab-content">
@@ -119,6 +120,26 @@
         </li>
       <% }); %>
     </ul>
+  </div>
+</div>
+
+<div id="qr-codes-content" class="tab-content" style="display: none;">
+  <div class="panel">
+    <h2>QR Codes for Your Shortened URLs</h2>
+    <div class="qr-code-list">
+      <% urls.forEach(function(url) { %>
+        <div class="qr-code-item">
+          <h3><%= url.original_url %></h3>
+          <p>Short URL: <%= url.custom_alias || url.short_code %></p>
+          <div class="qr-code-image" id="qr-<%= url.custom_alias || url.short_code %>">
+            <p>Loading QR code...</p>
+          </div>
+          <button class="btn btn-secondary download-qr" data-short-code="<%= url.custom_alias || url.short_code %>">
+            <i data-feather="download"></i> Download QR Code
+          </button>
+        </div>
+      <% }); %>
+    </div>
   </div>
 </div>
 
@@ -425,6 +446,39 @@ $(document).ready(function() {
 
   // Refresh stats periodically
   setInterval(updateDashboardStats, 60000); // Update every minute
+
+  // QR Code tab functionality
+  $('#qr-codes-tab').click(function() {
+    $('.tab-content').hide();
+    $('.tab-button').removeClass('active');
+    $(this).addClass('active');
+    $('#qr-codes-content').show();
+    loadQRCodes();
+  });
+
+  function loadQRCodes() {
+    $('.qr-code-image').each(function() {
+      const shortCode = $(this).attr('id').split('-')[1];
+      $.get(`/qr/${shortCode}`, function(data) {
+        $(`#qr-${shortCode}`).html(`<img src="${data.qrCode}" alt="QR Code for ${shortCode}">`);
+      }).fail(function() {
+        $(`#qr-${shortCode}`).html('<p>Failed to load QR code</p>');
+      });
+    });
+  }
+
+  $('.download-qr').click(function() {
+    const shortCode = $(this).data('short-code');
+    const qrImage = $(`#qr-${shortCode} img`).attr('src');
+    if (qrImage) {
+      const link = document.createElement('a');
+      link.href = qrImage;
+      link.download = `qr-code-${shortCode}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  });
 
   // Initialize Feather icons
   feather.replace();

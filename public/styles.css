@@ -1041,3 +1041,51 @@ a svg {
   margin-top: 10px;
   font-weight: bold;
 }
+
+/* QR Code styles */
+.qr-code-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 30px;
+}
+
+.qr-code-item {
+  background-color: var(--panel-color);
+  padding: 20px;
+  border-radius: var(--border-radius);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.08);
+  transition: var(--transition);
+}
+
+.qr-code-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(255, 107, 53, 0.12);
+}
+
+.qr-code-item h3 {
+  font-size: 18px;
+  margin-bottom: 10px;
+  color: var(--primary-color);
+  /* Break long URLs with ellipsis */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qr-code-item p {
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+.qr-code-image {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.qr-code-image img {
+  width: 50%;
+}
+
+.download-qr {
+  width: 100%;
+}
