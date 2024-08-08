@@ -529,6 +529,13 @@ select:focus {
   margin-bottom: 40px;
 }
 
+@media screen and (max-width: 768px) {
+  .main-title {
+    font-size: 36px;
+  }
+  
+}
+
 .hero-section {
   display: flex;
   justify-content: space-between;
@@ -843,6 +850,21 @@ select:focus {
   background-color: var(--background-color);
   border-radius: var(--border-radius);
   transition: var(--transition);
+}
+
+@media screen and (max-width: 768px) {
+  .dashboard-stats {
+    flex-wrap: wrap;
+  }
+
+  .stat-box {
+    flex: 1 1 calc(50% - 20px);
+    margin-bottom: 20px;
+  }
+
+  .dashboard-welcome h2 {
+    font-size: 20px;
+  }
 }
 
 .stat-box:hover {
