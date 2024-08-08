@@ -32,7 +32,9 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE,
   password TEXT,
   verified BOOLEAN,
-  verification_token TEXT
+  verification_token TEXT,
+  reset_token TEXT,
+  reset_token_expires DATETIME
 )`);
 
 // Create urls table if not exists (modified to include password field)
@@ -308,6 +310,88 @@ app.post('/shorten', (req, res) => {
         res.json({ shortCode: shortCode, customAlias: customAlias });
       }
     );
+  });
+});
+
+// New routes for password reset
+app.get('/forgot-password', (req, res) => {
+  res.render('forgot-password');
+});
+
+app.post('/forgot-password', (req, res) => {
+  const { email } = req.body;
+  db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
+    if (err || !user) {
+      return res.render('forgot-password', { error: 'No account with that email address exists.' });
+    }
+
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    const resetTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+
+    db.run('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?', 
+      [resetToken, resetTokenExpires.toISOString(), user.id], (err) => {
+      if (err) {
+        console.error(err);
+        return res.render('forgot-password', { error: 'An error occurred. Please try again.' });
+      }
+
+      const resetUrl = `http://localhost:${port}/reset-password/${resetToken}`;
+      const mailOptions = {
+        from: process.env.login,
+        to: user.email,
+        subject: 'Password Reset for URL Slicer',
+        text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
+          Please click on the following link, or paste this into your browser to complete the process:\n\n
+          ${resetUrl}\n\n
+          If you did not request this, please ignore this email and your password will remain unchanged.\n`
+      };
+
+      transporter.sendMail(mailOptions, (error) => {
+        if (error) {
+          console.log(error);
+          return res.render('forgot-password', { error: 'An error occurred while sending the email. Please try again.' });
+        }
+        res.render('forgot-password', { message: 'An email has been sent to ' + user.email + ' with further instructions.' });
+      });
+    });
+  });
+});
+
+app.get('/reset-password/:token', (req, res) => {
+  const { token } = req.params;
+  db.get('SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?', 
+    [token, new Date().toISOString()], (err, user) => {
+    if (err || !user) {
+      return res.render('reset-password', { error: 'Password reset token is invalid or has expired.' });
+    }
+    res.render('reset-password', { token });
+  });
+});
+
+app.post('/reset-password', (req, res) => {
+  const { token, password, confirmPassword } = req.body;
+
+  if (password !== confirmPassword) {
+    return res.render('reset-password', { token, error: 'Passwords do not match.' });
+  }
+
+  db.get('SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?', 
+    [token, new Date().toISOString()], async (err, user) => {
+    if (err || !user) {
+      return res.render('reset-password', { error: 'Password reset token is invalid or has expired.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    db.run('UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?', 
+      [hashedPassword, user.id], (err) => {
+      if (err) {
+        console.error(err);
+        return res.render('reset-password', { error: 'An error occurred. Please try again.' });
+      }
+
+      res.redirect('/login');
+    });
   });
 });
 
