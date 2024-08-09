@@ -829,7 +829,7 @@ async function getGeoDistribution(userId) {
 async function getDeviceStats(userId) {
   return new Promise((resolve, reject) => {
     db.all(`
-      SELECT clicks.user_agent, COUNT(*) as count
+      SELECT clicks.user_agent
       FROM clicks
       JOIN urls ON clicks.url_id = urls.id
       WHERE urls.user_id = ?
@@ -844,10 +844,10 @@ async function getDeviceStats(userId) {
         };
         rows.forEach(row => {
           const agent = useragent.parse(row.user_agent);
-          if (agent.isDesktop) deviceStats.Desktop += row.count;
-          else if (agent.isMobile) deviceStats.Mobile += row.count;
-          else if (agent.isTablet) deviceStats.Tablet += row.count;
-          else deviceStats.Other += row.count;
+          if (agent.isDesktop) deviceStats.Desktop++;
+          else if (agent.isMobile) deviceStats.Mobile++;
+          else if (agent.isTablet) deviceStats.Tablet++;
+          else deviceStats.Other++;
         });
         resolve(deviceStats);
       }
@@ -858,7 +858,7 @@ async function getDeviceStats(userId) {
 async function getBrowserStats(userId) {
   return new Promise((resolve, reject) => {
     db.all(`
-      SELECT clicks.user_agent, COUNT(*) as count
+      SELECT clicks.user_agent
       FROM clicks
       JOIN urls ON clicks.url_id = urls.id
       WHERE urls.user_id = ?
@@ -869,7 +869,11 @@ async function getBrowserStats(userId) {
         rows.forEach(row => {
           const agent = useragent.parse(row.user_agent);
           const browser = agent.browser;
-          browserStats[browser] = (browserStats[browser] || 0) + row.count;
+          if (browserStats[browser]) {
+            browserStats[browser]++;
+          } else {
+            browserStats[browser] = 1;
+          }
         });
         resolve(browserStats);
       }
