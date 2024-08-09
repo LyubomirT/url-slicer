@@ -1157,3 +1157,59 @@ a svg {
   color: #721c24;
   border: 1px solid #f5c6cb;
 }
+
+/* Analytics page styles */
+.analytics-container {
+  display: block;
+  gap: 30px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.analytics-container .panel {
+  padding: 20px;
+}
+
+.stats-grid {
+  display: block;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+}
+
+.stat-box {
+  background-color: var(--background-color);
+  padding: 15px;
+  border-radius: var(--border-radius);
+  text-align: center;
+}
+
+.stat-box h3 {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.stat-box p {
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--primary-color);
+}
+
+#map {
+  height: 400px;
+  border-radius: var(--border-radius);
+}
+
+@media (max-width: 768px) {
+  .analytics-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+canvas {
+  max-width: 500px;
+}
+
+.analytics-container .statsChart {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}

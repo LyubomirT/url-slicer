@@ -12,6 +12,8 @@ const dotenv = require('dotenv');
 const crypto = require('crypto');
 const axios = require('axios');
 const QRCode = require('qrcode');
+const useragent = require('express-useragent');
+const geoip = require('geoip-lite');
 dotenv.config();
 
 const app = express();
@@ -60,6 +62,7 @@ db.run(`CREATE TABLE IF NOT EXISTS clicks (
   url_id INTEGER,
   clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   country TEXT,
+  user_agent TEXT,
   FOREIGN KEY (url_id) REFERENCES urls (id)
 )`);
 
@@ -87,6 +90,7 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(useragent.express());
 
 // Function to delete expired URLs with enhanced error logging
 function deleteExpiredUrls() {
@@ -131,7 +135,6 @@ function deleteExpiredUrls() {
     });
   });
 }
-
 
 // Run deleteExpiredUrls every minute
 setInterval(deleteExpiredUrls, 60000);
@@ -395,6 +398,44 @@ app.post('/reset-password', (req, res) => {
   });
 });
 
+// Add the new route for the analytics page
+app.get('/analytics', (req, res) => {
+  if (!req.user) {
+    return res.redirect('/login');
+  }
+  res.render('analytics', { user: req.user });
+});
+
+// Add the new API route for fetching analytics data
+app.get('/api/analytics', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const totalClicks = await getTotalClicks(req.user.id);
+    const totalUrls = await getTotalUrls(req.user.id);
+    const averageCTR = totalUrls > 0 ? totalClicks / totalUrls : 0;
+    const ctrOverTime = await getCTROverTime(req.user.id);
+    const geoDistribution = await getGeoDistribution(req.user.id);
+    const deviceStats = await getDeviceStats(req.user.id);
+    const browserStats = await getBrowserStats(req.user.id);
+
+    res.json({
+      totalClicks,
+      totalUrls,
+      averageCTR,
+      ctrOverTime,
+      geoDistribution,
+      deviceStats,
+      browserStats
+    });
+  } catch (error) {
+    console.error('Error fetching analytics data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/:code', async (req, res) => {
   // make sure we're using the latest data
   db.get('PRAGMA read_uncommitted = true');
@@ -459,8 +500,9 @@ app.get('/:code', async (req, res) => {
       return res.status(410).render('max-uses-reached');
     }
 
+    const userAgent = req.headers['user-agent'];
     await new Promise((resolve, reject) => {
-      db.run('INSERT INTO clicks (url_id, country) VALUES (?, ?)', [url.id, country], (err) => {
+      db.run('INSERT INTO clicks (url_id, country, user_agent) VALUES (?, ?, ?)', [url.id, country, userAgent], (err) => {
         if (err) reject(err);
         else resolve();
       });
@@ -715,6 +757,125 @@ app.get('/qr/:code', async (req, res) => {
     res.status(500).json({ error: 'An error occurred while generating the QR code' });
   }
 });
+
+
+
+// Helper functions for fetching analytics data
+async function getTotalClicks(userId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT COUNT(*) as count FROM clicks WHERE url_id IN (SELECT id FROM urls WHERE user_id = ?)', [userId], (err, row) => {
+      if (err) reject(err);
+      else resolve(row.count);
+    });
+  });
+}
+
+async function getTotalUrls(userId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT COUNT(*) as count FROM urls WHERE user_id = ?', [userId], (err, row) => {
+      if (err) reject(err);
+      else resolve(row.count);
+    });
+  });
+}
+
+async function getCTROverTime(userId) {
+  return new Promise((resolve, reject) => {
+    db.all(`
+      SELECT DATE(clicks.clicked_at) as date, COUNT(*) as clicks, COUNT(DISTINCT urls.id) as urls
+      FROM clicks
+      JOIN urls ON clicks.url_id = urls.id
+      WHERE urls.user_id = ?
+      GROUP BY DATE(clicks.clicked_at)
+      ORDER BY date
+    `, [userId], (err, rows) => {
+      if (err) reject(err);
+      else {
+        const ctrData = rows.map(row => ({
+          date: row.date,
+          ctr: row.urls > 0 ? row.clicks / row.urls : 0
+        }));
+        resolve(ctrData);
+      }
+    });
+  });
+}
+
+async function getGeoDistribution(userId) {
+  return new Promise((resolve, reject) => {
+    db.all(`
+      SELECT clicks.country, COUNT(*) as count
+      FROM clicks
+      JOIN urls ON clicks.url_id = urls.id
+      WHERE urls.user_id = ?
+      GROUP BY clicks.country
+    `, [userId], (err, rows) => {
+      if (err) reject(err);
+      else {
+        const geoData = {};
+        rows.forEach(row => {
+          const geo = geoip.lookup(row.country);
+          if (geo) {
+            const key = `${geo.ll[0]},${geo.ll[1]}`;
+            geoData[key] = (geoData[key] || 0) + row.count;
+          }
+        });
+        resolve(geoData);
+      }
+    });
+  });
+}
+
+async function getDeviceStats(userId) {
+  return new Promise((resolve, reject) => {
+    db.all(`
+      SELECT clicks.user_agent, COUNT(*) as count
+      FROM clicks
+      JOIN urls ON clicks.url_id = urls.id
+      WHERE urls.user_id = ?
+    `, [userId], (err, rows) => {
+      if (err) reject(err);
+      else {
+        const deviceStats = {
+          Desktop: 0,
+          Mobile: 0,
+          Tablet: 0,
+          Other: 0
+        };
+        rows.forEach(row => {
+          const agent = useragent.parse(row.user_agent);
+          if (agent.isDesktop) deviceStats.Desktop += row.count;
+          else if (agent.isMobile) deviceStats.Mobile += row.count;
+          else if (agent.isTablet) deviceStats.Tablet += row.count;
+          else deviceStats.Other += row.count;
+        });
+        resolve(deviceStats);
+      }
+    });
+  });
+}
+
+async function getBrowserStats(userId) {
+  return new Promise((resolve, reject) => {
+    db.all(`
+      SELECT clicks.user_agent, COUNT(*) as count
+      FROM clicks
+      JOIN urls ON clicks.url_id = urls.id
+      WHERE urls.user_id = ?
+    `, [userId], (err, rows) => {
+      if (err) reject(err);
+      else {
+        const browserStats = {};
+        rows.forEach(row => {
+          const agent = useragent.parse(row.user_agent);
+          const browser = agent.browser;
+          browserStats[browser] = (browserStats[browser] || 0) + row.count;
+        });
+        resolve(browserStats);
+      }
+    });
+  });
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
