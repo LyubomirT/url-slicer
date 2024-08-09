@@ -14,6 +14,7 @@ const axios = require('axios');
 const QRCode = require('qrcode');
 const useragent = require('express-useragent');
 const geoip = require('geoip-lite');
+const flash = require('connect-flash');
 dotenv.config();
 
 const app = express();
@@ -36,7 +37,8 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
   verified BOOLEAN,
   verification_token TEXT,
   reset_token TEXT,
-  reset_token_expires DATETIME
+  reset_token_expires DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )`);
 
 // Create urls table if not exists (modified to include password field)
@@ -91,6 +93,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(useragent.express());
+app.use(flash());
 
 // Function to delete expired URLs with enhanced error logging
 function deleteExpiredUrls() {
@@ -204,16 +207,17 @@ app.get('/logout', (req, res) => {
 });
 
 app.get('/login', (req, res) => {
-  res.render('login');
+  res.render('login', { message: req.flash('error') });
 });
 
 app.post('/login', passport.authenticate('local', {
   successRedirect: '/dashboard',
-  failureRedirect: '/login'
+  failureRedirect: '/login',
+  failureFlash: true
 }));
 
 app.get('/register', (req, res) => {
-  res.render('register');
+  res.render('register', { message: req.flash('error') });
 });
 
 app.post('/register', async (req, res) => {
@@ -221,11 +225,12 @@ app.post('/register', async (req, res) => {
   const hashedPassword = await bcrypt.hash(password, 10);
   const verificationToken = crypto.randomBytes(32).toString('hex');
   
-  db.run('INSERT INTO users (email, password, verified, verification_token) VALUES (?, ?, ?, ?)', 
-    [email, hashedPassword, false, verificationToken], 
+  db.run('INSERT INTO users (email, password, verified, verification_token, created_at) VALUES (?, ?, ?, ?, ?)',
+    [email, hashedPassword, false, verificationToken, new Date().toISOString()],
     (err) => {
       if (err) {
-        return res.render('register', { error: 'Email already exists' });
+        req.flash('error', 'Email already exists');
+        return res.redirect('/register');
       }
       
       // Send verification email
@@ -240,7 +245,8 @@ app.post('/register', async (req, res) => {
       transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
           console.log(error);
-          res.render('register', { error: 'Error sending email' });
+          req.flash('error', 'Error sending email');
+          res.redirect('/register');
         } else {
           console.log('Email sent: ' + info.response);
           res.redirect('/register-confirmation');
@@ -433,6 +439,95 @@ app.get('/api/analytics', async (req, res) => {
   } catch (error) {
     console.error('Error fetching analytics data:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add this new route for the account management page
+app.get('/account', (req, res) => {
+  if (!req.user) {
+    return res.redirect('/login');
+  }
+  res.render('account', { user: req.user });
+});
+
+// Add this new route for changing the password
+app.post('/account/change-password', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { currentPassword, newPassword } = req.body;
+
+  try {
+    const match = await bcrypt.compare(currentPassword, req.user.password);
+    if (!match) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await new Promise((resolve, reject) => {
+      db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, req.user.id], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ error: 'An error occurred while changing the password' });
+  }
+});
+
+// Add this new route for deleting the account
+app.post('/account/delete', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    // Start a transaction
+    await new Promise((resolve, reject) => {
+      db.run('BEGIN TRANSACTION', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Delete user's URLs
+    await new Promise((resolve, reject) => {
+      db.run('DELETE FROM urls WHERE user_id = ?', [req.user.id], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Delete user's account
+    await new Promise((resolve, reject) => {
+      db.run('DELETE FROM users WHERE id = ?', [req.user.id], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // Commit the transaction
+    await new Promise((resolve, reject) => {
+      db.run('COMMIT', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    req.logout(() => {
+      res.json({ message: 'Account deleted successfully' });
+    });
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    // Rollback the transaction in case of error
+    await new Promise((resolve) => {
+      db.run('ROLLBACK', resolve);
+    });
+    res.status(500).json({ error: 'An error occurred while deleting the account' });
   }
 });
 

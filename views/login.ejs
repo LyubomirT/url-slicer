@@ -1,4 +1,9 @@
 <h1>Login</h1>
+<% if (message && message.length > 0) { %>
+  <div class="alert alert-danger">
+    <%= message %>
+  </div>
+<% } %>
 <form action="/login" method="POST" class="panel">
   <div class="form-group">
     <label for="email">Email:</label>
