@@ -10,7 +10,7 @@
 </head>
 <body>
   <div class="app-container">
-    <nav class="sidebar">
+    <nav class="sidebar" id="sidebar">
       <div class="logo">
         <h1>URL Slicer</h1>
       </div>
@@ -26,6 +26,8 @@
           <li><a href="/login"><i data-feather="log-in"></i> Login</a></li>
           <li><a href="/register"><i data-feather="user-plus"></i> Register</a></li>
         <% } %>
+        <li><a href="#" id="sidebarToggle"><i data-feather="chevrons-left"></i> Fix Sidebar</a></li>
+        <li><a href="#" id="darkModeToggle"><i data-feather="moon"></i> Dark Mode</a></li>
       </ul>
     </nav>
     <main class="content">
@@ -33,7 +35,61 @@
     </main>
   </div>
   <script>
-    feather.replace();
+    // Wrap all JavaScript code in a DOMContentLoaded event listener
+    document.addEventListener('DOMContentLoaded', function() {
+      feather.replace();
+
+      // Dark mode toggle
+      const darkModeToggle = document.getElementById('darkModeToggle');
+      const body = document.body;
+
+      darkModeToggle.addEventListener('click', function(e) {
+        e.preventDefault();
+        body.classList.toggle('dark-mode');
+        const isDarkMode = body.classList.contains('dark-mode');
+        localStorage.setItem('darkMode', isDarkMode);
+        updateDarkModeButton(isDarkMode);
+      });
+
+      // Check for saved dark mode preference
+      const savedDarkMode = localStorage.getItem('darkMode');
+      if (savedDarkMode === 'true') {
+        body.classList.add('dark-mode');
+      }
+
+      const fixedSidebar = localStorage.getItem('fixedSidebar');
+      if (fixedSidebar === 'true') {
+        document.querySelector('.app-container').classList.add('sidebar-closed');
+      }
+
+      // Sidebar toggle
+      const sidebarToggle = document.getElementById('sidebarToggle');
+      const sidebar = document.getElementById('sidebar');
+      const appContainer = document.querySelector('.app-container');
+
+      sidebarToggle.addEventListener('click', function(e) {
+        e.preventDefault();
+        appContainer.classList.toggle('sidebar-closed');
+        const isClosed = appContainer.classList.contains('sidebar-closed');
+        localStorage.setItem('fixedSidebar', isClosed);
+      });
+
+      // Hover functionality for closed sidebar
+      appContainer.addEventListener('mousemove', function(e) {
+        if (appContainer.classList.contains('sidebar-closed') && e.clientX <= 10) {
+          appContainer.classList.add('sidebar-hover');
+        }
+      });
+
+      sidebar.addEventListener('mouseleave', function() {
+        if (appContainer.classList.contains('sidebar-closed')) {
+          appContainer.classList.remove('sidebar-hover');
+        }
+      });
+
+      // Initialize Feather icons
+      feather.replace();
+    });
   </script>
 </body>
 </html>

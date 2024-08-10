@@ -16,6 +16,19 @@
   --transition: all 0.3s ease;
 }
 
+/* Dark mode variables */
+.dark-mode {
+  --primary-color: #FF8C5A;
+  --primary-dark: #FF7F4D;
+  --secondary-color: #FFB38F;
+  --secondary-dark: #FFA67F;
+  --background-color: #1E1E1E;
+  --panel-color: #2D2D2D;
+  --text-color: #E0E0E0;
+  --text-light: #FFFFFF;
+  --border-color: #4D4D4D;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -1222,4 +1235,98 @@ canvas {
 .support-button .btn {
   width: 100%;
   text-align: center;
+}
+
+/* Dark mode styles */
+.dark-mode body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.dark-mode .sidebar,
+.dark-mode .panel,
+.dark-mode .modal-content,
+.dark-mode .url-item,
+.dark-mode .stat-box {
+  background-color: var(--panel-color);
+}
+
+.dark-mode .nav-links a,
+.dark-mode h1,
+.dark-mode h2,
+.dark-mode h3,
+.dark-mode .stat-value {
+  color: var(--text-light);
+}
+
+.dark-mode .nav-links a:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode input[type="text"],
+.dark-mode input[type="email"],
+.dark-mode input[type="password"],
+.dark-mode input[type="number"],
+.dark-mode input[type="url"],
+.dark-mode input[type="datetime-local"],
+.dark-mode textarea,
+.dark-mode select {
+  background-color: var(--panel-color);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+.dark-mode .tab-button {
+  color: var(--text-color);
+}
+
+.dark-mode .btn-primary {
+  background-color: var(--primary-color);
+  color: var(--text-light);
+}
+
+.dark-mode .btn-secondary {
+  background-color: var(--secondary-color);
+  color: var(--text-light);
+}
+
+/* Sidebar toggle styles */
+.sidebar {
+  transition: transform 0.3s ease;
+}
+
+.sidebar-closed .sidebar {
+  transform: translateX(-100%);
+}
+
+.sidebar-closed .content {
+  margin-left: 0;
+}
+
+.sidebar-hover .sidebar {
+  transform: translateX(0);
+}
+
+.app-container {
+  position: relative;
+  overflow-x: hidden;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1000;
+    width: 250px;
+  }
+
+  .sidebar-closed .content {
+    margin-left: 0;
+  }
+
+  .content {
+    margin-left: 0;
+  }
 }
