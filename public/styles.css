@@ -1213,3 +1213,13 @@ canvas {
   justify-content: center;
   align-items: center;
 }
+
+.support-button {
+  margin-top: auto;
+  padding: 20px;
+}
+
+.support-button .btn {
+  width: 100%;
+  text-align: center;
+}
