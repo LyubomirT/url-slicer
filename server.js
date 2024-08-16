@@ -914,15 +914,8 @@ async function getGeoDistribution(userId) {
   ]);
 
   return geoData.reduce((acc, item) => {
-    if (item._id) {  // Check if country code exists
-      const geo = geoip.lookup(item._id);
-      if (geo && geo.ll && geo.ll.length === 2) {
-        const [lat, lon] = geo.ll;
-        if (typeof lat === 'number' && typeof lon === 'number') {
-          const key = `${lat},${lon}`;
-          acc[key] = (acc[key] || 0) + item.count;
-        }
-      }
+    if (item._id && item._id.length === 2) {  // Ensure the country code is valid
+      acc[item._id] = item.count;
     }
     return acc;
   }, {});

@@ -42,6 +42,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-choropleth@1.1.4/dist/choropleth.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
 
 <script>
@@ -57,6 +58,14 @@ document.addEventListener('DOMContentLoaded', function() {
       createBrowserChart(data.browserStats);
     })
     .catch(error => console.error('Error fetching analytics data:', error));
+
+  // Fetch GeoJSON data for country boundaries
+  fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+    .then(response => response.json())
+    .then(countriesData => {
+      window.countriesGeoJSON = countriesData;
+    })
+    .catch(error => console.error('Error fetching GeoJSON data:', error));
 });
 
 function updateOverallStats(data) {
@@ -95,22 +104,64 @@ function createCTRChart(ctrData) {
 }
 
 function createGeoMap(geoData) {
+  if (!window.countriesGeoJSON) {
+    console.error('GeoJSON data not loaded');
+    return;
+  }
+
   const map = L.map('map').setView([0, 0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
   }).addTo(map);
 
+  // Convert geoData to the format expected by the choropleth plugin
+  const clicksData = {};
   for (const country in geoData) {
-    const [lat, lon] = country.split(',').map(Number);
-    if (!isNaN(lat) && !isNaN(lon)) {
-      L.circle([lat, lon], {
-        color: 'red',
-        fillColor: '#f03',
-        fillOpacity: 0.5,
-        radius: Math.sqrt(geoData[country]) * 50000
-      }).addTo(map).bindPopup(`Clicks: ${geoData[country]}`);
-    }
+    clicksData[country] = geoData[country];
   }
+
+  // Create the choropleth layer
+  L.choropleth(window.countriesGeoJSON, {
+    valueProperty: function(feature) {
+      return clicksData[feature.properties.ISO_A2] || 0;
+    },
+    scale: ['#FFEDA0', '#FEB24C', '#F03B20'],
+    steps: 5,
+    mode: 'q',
+    style: {
+      color: '#fff',
+      weight: 2,
+      fillOpacity: 0.8
+    },
+    onEachFeature: function(feature, layer) {
+      layer.bindPopup(
+        'Country: ' + feature.properties.ADMIN + '<br>' +
+        'Clicks: ' + (clicksData[feature.properties.ISO_A2] || 0)
+      );
+    }
+  }).addTo(map);
+
+  // Add a legend
+  const legend = L.control({position: 'bottomright'});
+  legend.onAdd = function(map) {
+    const div = L.DomUtil.create('div', 'info legend');
+    const limits = [0, 10, 20, 50, 100, 200];
+    const colors = ['#FFEDA0', '#FED976', '#FEB24C', '#FD8D3C', '#FC4E2A', '#E31A1C'];
+    let labels = [];
+
+    for (let i = 0; i < limits.length; i++) {
+      const from = limits[i];
+      const to = limits[i + 1];
+
+      labels.push(
+        '<i style="background:' + colors[i] + '"></i> ' +
+        from + (to ? '&ndash;' + to : '+') + ' clicks');
+    }
+
+    div.innerHTML = labels.join('<br>');
+    return div;
+  };
+  legend.addTo(map);
 }
 
 function createDeviceChart(deviceData) {
@@ -164,3 +215,25 @@ function createBrowserChart(browserData) {
   });
 }
 </script>
+
+<style>
+.info {
+    padding: 6px 8px;
+    font: 14px/16px Arial, Helvetica, sans-serif;
+    background: white;
+    background: rgba(255,255,255,0.8);
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    border-radius: 5px;
+}
+.legend {
+    line-height: 18px;
+    color: #555;
+}
+.legend i {
+    width: 18px;
+    height: 18px;
+    float: left;
+    margin-right: 8px;
+    opacity: 0.7;
+}
+</style>
