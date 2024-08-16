@@ -24,12 +24,7 @@ const port = process.env.PORT || 3000;
 console.log(new Date().toISOString());
 
 // MongoDB connection
-mongoose.connect(process.env.MongoURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  useCreateIndex: true,
-  useFindAndModify: false
-}).then(() => console.log('MongoDB connected...'))
+mongoose.connect(process.env.MongoURI).then(() => console.log('MongoDB connected...'))
   .catch(err => console.error('MongoDB connection error:', err));
 
 // Define MongoDB schemas and models
