@@ -214,7 +214,9 @@ app.post('/register', async (req, res) => {
     await newUser.save();
     
     // Send verification email
-    const verificationLink = `http://localhost:${port}/verify/${verificationToken}`;
+    // get the actual base URL from the request
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const verificationLink = `${baseUrl}/verify/${verificationToken}`;
     const mailOptions = {
       from: process.env.login,
       to: email,
@@ -331,7 +333,7 @@ app.post('/forgot-password', async (req, res) => {
     user.reset_token_expires = resetTokenExpires;
     await user.save();
 
-    const resetUrl = `http://localhost:${port}/reset-password/${resetToken}`;
+    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`;
     const mailOptions = {
       from: process.env.login,
       to: user.email,
