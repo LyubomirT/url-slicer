@@ -25,8 +25,8 @@
   </div>
 
   <div class="panel">
-    <h2>Geo Distribution of Clicks</h2>
-    <div id="country-list" class="country-list"></div>
+    <h2>URL Statistics</h2>
+    <div id="url-list"></div>
   </div>
 
   <div class="panel" class="statsChart">
@@ -49,9 +49,9 @@ document.addEventListener('DOMContentLoaded', function() {
     .then(data => {
       updateOverallStats(data);
       createCTRChart(data.ctrOverTime);
-      createCountryList(data.geoDistribution);
       createDeviceChart(data.deviceStats);
       createBrowserChart(data.browserStats);
+      fetchUrlList();
     })
     .catch(error => console.error('Error fetching analytics data:', error));
 });
@@ -91,23 +91,54 @@ function createCTRChart(ctrData) {
   });
 }
 
-function createCountryList(geoData) {
-  const countryList = document.getElementById('country-list');
-  const sortedCountries = Object.entries(geoData)
-    .sort((a, b) => b[1] - a[1]);  // Sort by click count, descending
+function fetchUrlList() {
+  fetch('/dashboard')
+    .then(response => response.text())
+    .then(html => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const urlItems = doc.querySelectorAll('.url-item');
+      const urlListContainer = document.getElementById('url-list');
 
-  let listHtml = '<ul class="country-stats">';
-  sortedCountries.forEach(([country, clicks]) => {
-    listHtml += `
-      <li class="country-stat-item">
-        <span class="country-name">${country}</span>
-        <span class="country-clicks">${clicks} click${clicks !== 1 ? 's' : ''}</span>
-      </li>
-    `;
-  });
-  listHtml += '</ul>';
+      urlItems.forEach(item => {
+        const shortCode = item.querySelector('.short-url a').textContent.trim();
+        const originalUrl = item.querySelector('.original-url').textContent;
 
-  countryList.innerHTML = listHtml;
+        const urlPanel = document.createElement('div');
+        urlPanel.className = 'url-panel';
+        urlPanel.innerHTML = `
+          <h3>${originalUrl}</h3>
+          <p>Short URL: ${shortCode}</p>
+          <h4>Country Statistics</h4>
+          <div class="country-list" id="country-list-${shortCode}">Loading...</div>
+        `;
+
+        urlListContainer.appendChild(urlPanel);
+
+        fetchCountryStats(shortCode);
+      });
+    })
+    .catch(error => console.error('Error fetching URL list:', error));
+}
+
+function fetchCountryStats(shortCode) {
+  fetch(`/api/country-stats/${shortCode}`)
+    .then(response => response.json())
+    .then(data => {
+      const countryList = document.getElementById(`country-list-${shortCode}`);
+      let listHtml = '<ul class="country-stats">';
+      data.forEach(({ _id, count }) => {
+        listHtml += `
+          <li class="country-stat-item">
+            <span class="country-name">${_id}</span>
+            <span class="country-clicks">${count} click${count !== 1 ? 's' : ''}</span>
+          </li>
+        `;
+      });
+      listHtml += '</ul>';
+      countryList.innerHTML = listHtml;
+    })
+    .catch(error => console.error(`Error fetching country stats for ${shortCode}:`, error));
 }
 
 function createDeviceChart(deviceData) {
@@ -163,8 +194,52 @@ function createBrowserChart(browserData) {
 </script>
 
 <style>
+.analytics-container {
+  display: grid;
+  gap: 20px;
+}
+
+.panel {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.stat-box {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 15px;
+  text-align: center;
+}
+
+.stat-box h3 {
+  margin-top: 0;
+  color: #495057;
+}
+
+.stat-box p {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 10px 0 0;
+  color: #0056b3;
+}
+
+.url-panel {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 5px;
+}
+
 .country-list {
-  max-height: 400px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
@@ -176,7 +251,7 @@ function createBrowserChart(browserData) {
 .country-stat-item {
   display: flex;
   justify-content: space-between;
-  padding: 10px;
+  padding: 5px 0;
   border-bottom: 1px solid #eee;
 }
 
@@ -190,5 +265,16 @@ function createBrowserChart(browserData) {
 
 .country-clicks {
   color: #666;
+}
+
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

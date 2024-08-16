@@ -429,14 +429,6 @@ app.get('/api/analytics', async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
-    const geoDistribution = await Click.aggregate([
-      { $match: { url_id: { $in: await Url.find({ user_id: req.user._id }).distinct('_id') } } },
-      { $group: {
-        _id: "$country",
-        count: { $sum: 1 }
-      }}
-    ]);
-
     const deviceStats = await Click.aggregate([
       { $match: { url_id: { $in: await Url.find({ user_id: req.user._id }).distinct('_id') } } },
       { $group: {
@@ -488,13 +480,41 @@ app.get('/api/analytics', async (req, res) => {
       totalUrls,
       averageCTR,
       ctrOverTime,
-      geoDistribution,
       deviceStats,
       browserStats
     });
   } catch (error) {
     console.error('Error fetching analytics data:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/country-stats/:code', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { code } = req.params;
+  try {
+    const url = await Url.findOne({
+      $or: [{ short_code: code }, { custom_alias: code }],
+      user_id: req.user._id
+    });
+
+    if (!url) {
+      return res.status(404).json({ error: 'URL not found' });
+    }
+
+    const countryStats = await Click.aggregate([
+      { $match: { url_id: url._id } },
+      { $group: { _id: "$country", count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    res.json(countryStats);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error fetching country statistics' });
   }
 });
 
