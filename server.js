@@ -20,6 +20,11 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+let server;
+let isServerAwake = true;
+let lastActivityTime = Date.now();
+const SLEEP_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
+
 // Log the current time
 console.log(new Date().toISOString());
 
@@ -89,6 +94,15 @@ app.use(passport.session());
 app.use(useragent.express());
 app.use(flash());
 
+// Middleware to update last activity time
+app.use((req, res, next) => {
+  lastActivityTime = Date.now();
+  if (!isServerAwake) {
+    wakeUpServer();
+  }
+  next();
+});
+
 // Function to delete expired URLs
 async function deleteExpiredUrls() {
   const now = new Date();
@@ -109,8 +123,50 @@ async function deleteExpiredUrls() {
   }
 }
 
-// Run deleteExpiredUrls every minute
-setInterval(deleteExpiredUrls, 60000);
+let expiredUrlsInterval;
+
+// Function to put the server to sleep
+function putServerToSleep() {
+  console.log('Server going to sleep...');
+  isServerAwake = false;
+  clearInterval(expiredUrlsInterval);
+  mongoose.connection.close(() => {
+    console.log('MongoDB connection closed.');
+  });
+  server.close(() => {
+    console.log('Server is now asleep.');
+  });
+}
+
+// Function to wake up the server
+function wakeUpServer() {
+  console.log('Waking up the server...');
+  isServerAwake = true;
+  mongoose.connect(process.env.MongoURI)
+    .then(() => {
+      console.log('MongoDB reconnected...');
+      startBackgroundProcesses();
+      server = app.listen(port, () => {
+        console.log(`Server is awake and running on port ${port}`);
+      });
+    })
+    .catch(err => console.error('MongoDB reconnection error:', err));
+}
+
+// Start background processes
+function startBackgroundProcesses() {
+  expiredUrlsInterval = setInterval(deleteExpiredUrls, 60000);
+}
+
+// Check for inactivity and put server to sleep if needed
+function checkInactivity() {
+  if (isServerAwake && Date.now() - lastActivityTime > SLEEP_TIMEOUT) {
+    putServerToSleep();
+  }
+}
+
+// Set up inactivity check interval
+const inactivityCheckInterval = setInterval(checkInactivity, 60000); // Check every minute
 
 // Logging function
 function log(message, data = {}) {
@@ -215,7 +271,6 @@ app.post('/register', async (req, res) => {
     await newUser.save();
     
     // Send verification email
-    // get the actual base URL from the request
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     const verificationLink = `${baseUrl}/verify/${verificationToken}`;
     const mailOptions = {
@@ -919,7 +974,6 @@ async function getGeoDistribution(userId) {
   return result;
 }
 
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -927,12 +981,18 @@ app.use((err, req, res, next) => {
 });
 
 // Start the server
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+mongoose.connect(process.env.MongoURI).then(() => {
+  console.log('MongoDB connected...');
+  startBackgroundProcesses();
+  server = app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+}).catch(err => console.error('MongoDB connection error:', err));
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
+  clearInterval(inactivityCheckInterval);
+  clearInterval(expiredUrlsInterval);
   console.log('Closing MongoDB connection...');
   try {
     await mongoose.connection.close();
