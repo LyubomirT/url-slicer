@@ -432,19 +432,7 @@ app.get('/api/analytics', async (req, res) => {
     const deviceStats = await Click.aggregate([
       { $match: { url_id: { $in: await Url.find({ user_id: req.user._id }).distinct('_id') } } },
       { $group: {
-        _id: {
-          $cond: [
-            { $regexMatch: { input: "$user_agent", regex: /mobile/i } },
-            "Mobile",
-            {
-              $cond: [
-                { $regexMatch: { input: "$user_agent", regex: /tablet/i } },
-                "Tablet",
-                "Desktop"
-              ]
-            }
-          ]
-        },
+        _id: "$device",
         count: { $sum: 1 }
       }}
     ]);
@@ -452,25 +440,7 @@ app.get('/api/analytics', async (req, res) => {
     const browserStats = await Click.aggregate([
       { $match: { url_id: { $in: await Url.find({ user_id: req.user._id }).distinct('_id') } } },
       { $group: {
-        _id: {
-          $cond: [
-            { $regexMatch: { input: "$user_agent", regex: /chrome/i } },
-            "Chrome",
-            {
-              $cond: [
-                { $regexMatch: { input: "$user_agent", regex: /firefox/i } },
-                "Firefox",
-                {
-                  $cond: [
-                    { $regexMatch: { input: "$user_agent", regex: /safari/i } },
-                    "Safari",
-                    "Other"
-                  ]
-                }
-              ]
-            }
-          ]
-        },
+        _id: "$browser",
         count: { $sum: 1 }
       }}
     ]);
@@ -654,6 +624,8 @@ app.get('/:code', async (req, res) => {
       browser: userAgent.browser,
       device: userAgent.isMobile ? 'Mobile' : (userAgent.isTablet ? 'Tablet' : 'Desktop')
     });
+
+    console.log('The user agent uses ' + userAgent.browser + ' on a ' + (userAgent.isMobile ? 'mobile' : (userAgent.isTablet ? 'tablet' : 'desktop')) + ' device.');
 
     log('Click recorded', { urlId: url._id, country, browser: userAgent.browser, device: userAgent.isMobile ? 'Mobile' : (userAgent.isTablet ? 'Tablet' : 'Desktop') });
     log('Redirecting', { originalUrl: url.original_url });
@@ -947,31 +919,6 @@ async function getGeoDistribution(userId) {
   return result;
 }
 
-// Update the getDeviceStats function
-async function getDeviceStats(userId) {
-  return Click.aggregate([
-    { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
-    {
-      $group: {
-        _id: "$device",
-        count: { $sum: 1 }
-      }
-    }
-  ]);
-}
-
-// Update the getBrowserStats function
-async function getBrowserStats(userId) {
-  return Click.aggregate([
-    { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
-    {
-      $group: {
-        _id: "$browser",
-        count: { $sum: 1 }
-      }
-    }
-  ]);
-}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
