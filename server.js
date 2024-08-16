@@ -953,20 +953,50 @@ async function getDeviceStats(userId) {
     { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
     {
       $group: {
-        _id: "$device",
+        _id: {
+          $cond: [
+            { $regexMatch: { input: "$device", regex: /mobile/i } },
+            "Mobile",
+            {
+              $cond: [
+                { $regexMatch: { input: "$device", regex: /tablet/i } },
+                "Tablet",
+                "Desktop"
+              ]
+            }
+          ]
+        },
         count: { $sum: 1 }
       }
     }
   ]);
 }
 
-// Update the getBrowserStats function
+// Update the getBrowserStats function  
 async function getBrowserStats(userId) {
   return Click.aggregate([
     { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
     {
       $group: {
-        _id: "$browser",
+        _id: {
+          $cond: [
+            { $regexMatch: { input: "$browser", regex: /chrome/i } },
+            "Chrome",
+            {
+              $cond: [
+                { $regexMatch: { input: "$browser", regex: /firefox/i } },
+                "Firefox",
+                {
+                  $cond: [
+                    { $regexMatch: { input: "$browser", regex: /safari/i } },
+                    "Safari",
+                    "Other"
+                  ]
+                }  
+              ]
+            }
+          ]
+        },
         count: { $sum: 1 }
       }
     }
