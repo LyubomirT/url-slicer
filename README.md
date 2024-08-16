@@ -3,6 +3,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Node.js Version](https://img.shields.io/badge/node-v14.x-green.svg)](https://nodejs.org)
 [![Express Version](https://img.shields.io/badge/express-v4.18.2-blue.svg)](https://expressjs.com)
+[![MongoDB Version](https://img.shields.io/badge/mongodb-v6.x-green.svg)](https://www.mongodb.com)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/LyubomirT/url-slicer/issues)
 
 URL Slicer is an easy-to-use, lightweight web tool for shortening URLs in a modern and customizable way. Slice through the clutter of long URLs and serve your audience with clean, manageable links!
@@ -22,7 +23,7 @@ URL Slicer is an easy-to-use, lightweight web tool for shortening URLs in a mode
 ## 🛠️ Technologies Used
 
 - **Backend**: Node.js with Express.js
-- **Database**: SQLite3
+- **Database**: MongoDB with Mongoose
 - **Authentication**: Passport.js
 - **Frontend**: EJS templating engine
 - **Styling**: Custom CSS
@@ -41,7 +42,6 @@ url-slicer/
 │   └── styles.css         # Main stylesheet
 ├── server.js              # Main application file
 ├── package.json           # Project dependencies
-├── database.sqlite        # SQLite database (not in repo)
 └── .env                   # Environment variables (not in repo)
 ```
 
@@ -63,6 +63,7 @@ url-slicer/
    password=your_outlook_password
    PORT=3000
    SESSION_SECRET=your_session_secret
+   MongoURI=your_mongodb_connection_string
    ```
 
 4. Start the server:
