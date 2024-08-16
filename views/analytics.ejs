@@ -109,6 +109,8 @@ function createGeoMap(geoData) {
     return;
   }
 
+  console.log('Received geoData:', geoData);
+
   const map = L.map('map').setView([0, 0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
@@ -120,10 +122,18 @@ function createGeoMap(geoData) {
     clicksData[country] = geoData[country];
   }
 
+  console.log('Processed clicksData:', clicksData);
+
+  // Find the maximum number of clicks
+  const maxClicks = Math.max(...Object.values(clicksData));
+  console.log('Maximum clicks:', maxClicks);
+
   // Create the choropleth layer
   L.choropleth(window.countriesGeoJSON, {
     valueProperty: function(feature) {
-      return clicksData[feature.properties.ISO_A2] || 0;
+      const clicks = clicksData[feature.properties.ISO_A2] || 0;
+      console.log('Country:', feature.properties.ISO_A2, 'Clicks:', clicks);
+      return clicks;
     },
     scale: ['#FFEDA0', '#FEB24C', '#F03B20'],
     steps: 5,

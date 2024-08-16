@@ -913,12 +913,18 @@ async function getGeoDistribution(userId) {
     }
   ]);
 
-  return geoData.reduce((acc, item) => {
+  console.log('Raw geoData:', geoData);
+
+  const result = geoData.reduce((acc, item) => {
     if (item._id && item._id.length === 2) {  // Ensure the country code is valid
       acc[item._id] = item.count;
     }
     return acc;
   }, {});
+
+  console.log('Processed geoData:', result);
+
+  return result;
 }
 
 // Update the getDeviceStats function
