@@ -5,7 +5,8 @@
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
-        "dev": "nodemon server.js"
+        "dev": "nodemon server.js",
+        "breakeverything": "node breakbreakbreakbreakeverything.js"
     },
     "dependencies": {
         "axios": "^1.7.3",
