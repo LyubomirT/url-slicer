@@ -3,7 +3,7 @@ const session = require('express-session');
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcrypt');
-const sqlite3 = require('sqlite3').verbose();
+const mongoose = require('mongoose');
 const path = require('path');
 const nodemailer = require('nodemailer');
 const shortid = require('shortid');
@@ -23,59 +23,57 @@ const port = process.env.PORT || 3000;
 // Log the current time
 console.log(new Date().toISOString());
 
-// Database setup
-const db = new sqlite3.Database('./database.sqlite', sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE);
+// MongoDB connection
+mongoose.connect(process.env.MongoURI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  useCreateIndex: true,
+  useFindAndModify: false
+}).then(() => console.log('MongoDB connected...'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
-// Enable foreign key support
-db.run('PRAGMA foreign_keys = ON');
+// Define MongoDB schemas and models
+const userSchema = new mongoose.Schema({
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  verified: { type: Boolean, default: false },
+  verification_token: String,
+  reset_token: String,
+  reset_token_expires: Date,
+  created_at: { type: Date, default: Date.now }
+});
 
-// Create users table if not exists
-db.run(`CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT UNIQUE,
-  password TEXT,
-  verified BOOLEAN,
-  verification_token TEXT,
-  reset_token TEXT,
-  reset_token_expires DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)`);
+const urlSchema = new mongoose.Schema({
+  user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  original_url: { type: String, required: true },
+  short_code: { type: String, unique: true, required: true },
+  custom_alias: { type: String, unique: true, sparse: true },
+  created_at: { type: Date, default: Date.now },
+  max_uses: Number,
+  auto_delete_at: Date,
+  whitelist_mode: { type: Boolean, default: false },
+  allowed_countries: [String],
+  blocked_countries: [String],
+  password: String
+});
 
-// Create urls table if not exists (modified to include password field)
-db.run(`CREATE TABLE IF NOT EXISTS urls (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER,
-  original_url TEXT,
-  short_code TEXT UNIQUE,
-  custom_alias TEXT UNIQUE,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  max_uses INTEGER,
-  auto_delete_at DATETIME,
-  whitelist_mode BOOLEAN,
-  allowed_countries TEXT,
-  blocked_countries TEXT,
-  password TEXT,
-  FOREIGN KEY (user_id) REFERENCES users (id)
-)`);
+const clickSchema = new mongoose.Schema({
+  url_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Url', required: true },
+  clicked_at: { type: Date, default: Date.now },
+  country: String,
+  user_agent: String
+});
 
-// Create clicks table if not exists
-db.run(`CREATE TABLE IF NOT EXISTS clicks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  url_id INTEGER,
-  clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  country TEXT,
-  user_agent TEXT,
-  FOREIGN KEY (url_id) REFERENCES urls (id)
-)`);
+const failedAttemptSchema = new mongoose.Schema({
+  url_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Url', required: true },
+  attempted_at: { type: Date, default: Date.now },
+  ip_address: String
+});
 
-// Create failed_attempts table
-db.run(`CREATE TABLE IF NOT EXISTS failed_attempts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  url_id INTEGER,
-  attempted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  ip_address TEXT,
-  FOREIGN KEY (url_id) REFERENCES urls (id)
-)`);
+const User = mongoose.model('User', userSchema);
+const Url = mongoose.model('Url', urlSchema);
+const Click = mongoose.model('Click', clickSchema);
+const FailedAttempt = mongoose.model('FailedAttempt', failedAttemptSchema);
 
 // Middleware
 app.set('view engine', 'ejs');
@@ -95,48 +93,24 @@ app.use(passport.session());
 app.use(useragent.express());
 app.use(flash());
 
-// Function to delete expired URLs with enhanced error logging
-function deleteExpiredUrls() {
-  const now = new Date().toISOString();
-  
-  // Delete clicks for expired URLs
-  db.run(`DELETE FROM clicks WHERE url_id IN (
-    SELECT id FROM urls 
-    WHERE auto_delete_at IS NOT NULL 
-    AND auto_delete_at != '' 
-    AND auto_delete_at <= ?
-  )`, [now], (err) => {
-    if (err) {
-      console.error('Error deleting expired clicks:', err);
-      console.error('Error details:', {
-        message: err.message,
-        code: err.code,
-        errno: err.errno,
-        sql: err.sql
-      });
-      return;
+// Function to delete expired URLs
+async function deleteExpiredUrls() {
+  const now = new Date();
+  try {
+    const expiredUrls = await Url.find({
+      auto_delete_at: { $lte: now, $ne: null }
+    });
+
+    for (const url of expiredUrls) {
+      await Click.deleteMany({ url_id: url._id });
+      await FailedAttempt.deleteMany({ url_id: url._id });
+      await Url.findByIdAndDelete(url._id);
     }
 
-    console.log('Expired clicks deleted successfully');
-
-    // Delete expired URLs
-    db.run(`DELETE FROM urls 
-      WHERE auto_delete_at IS NOT NULL 
-      AND auto_delete_at != '' 
-      AND auto_delete_at <= ?`, [now], (err) => {
-      if (err) {
-        console.error('Error deleting expired URLs:', err);
-        console.error('Error details:', {
-          message: err.message,
-          code: err.code,
-          errno: err.errno,
-          sql: err.sql
-        });
-      } else {
-        console.log('Expired URLs deleted successfully');
-      }
-    });
-  });
+    console.log('Expired URLs and associated data deleted successfully');
+  } catch (error) {
+    console.error('Error deleting expired URLs:', error);
+  }
 }
 
 // Run deleteExpiredUrls every minute
@@ -150,18 +124,18 @@ function log(message, data = {}) {
 // Passport configuration
 passport.use(new LocalStrategy(
   { usernameField: 'email' },
-  (email, password, done) => {
-    db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
-      if (err) return done(err);
+  async (email, password, done) => {
+    try {
+      const user = await User.findOne({ email: email });
       if (!user) return done(null, false, { message: 'Incorrect email.' });
       if (!user.verified) return done(null, false, { message: 'Email not verified.' });
       
-      bcrypt.compare(password, user.password, (err, result) => {
-        if (err) return done(err);
-        if (!result) return done(null, false, { message: 'Incorrect password.' });
-        return done(null, user);
-      });
-    });
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) return done(null, false, { message: 'Incorrect password.' });
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
   }
 ));
 
@@ -169,10 +143,13 @@ passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
-passport.deserializeUser((id, done) => {
-  db.get('SELECT * FROM users WHERE id = ?', [id], (err, user) => {
-    done(err, user);
-  });
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (err) {
+    done(err);
+  }
 });
 
 // Nodemailer configuration
@@ -222,68 +199,79 @@ app.get('/register', (req, res) => {
 
 app.post('/register', async (req, res) => {
   const { email, password } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const verificationToken = crypto.randomBytes(32).toString('hex');
-  
-  db.run('INSERT INTO users (email, password, verified, verification_token, created_at) VALUES (?, ?, ?, ?, ?)',
-    [email, hashedPassword, false, verificationToken, new Date().toISOString()],
-    (err) => {
-      if (err) {
-        req.flash('error', 'Email already exists');
-        return res.redirect('/register');
-      }
-      
-      // Send verification email
-      const verificationLink = `http://localhost:${port}/verify/${verificationToken}`;
-      const mailOptions = {
-        from: process.env.login,
-        to: email,
-        subject: 'Verify your email for URL Slicer',
-        text: `Please click on this link to verify your email: ${verificationLink}`
-      };
-      
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.log(error);
-          req.flash('error', 'Error sending email');
-          res.redirect('/register');
-        } else {
-          console.log('Email sent: ' + info.response);
-          res.redirect('/register-confirmation');
-        }
-      });
+  try {
+    const existingUser = await User.findOne({ email: email });
+    if (existingUser) {
+      req.flash('error', 'Email already exists');
+      return res.redirect('/register');
     }
-  );
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    
+    const newUser = new User({
+      email: email,
+      password: hashedPassword,
+      verified: false,
+      verification_token: verificationToken
+    });
+
+    await newUser.save();
+    
+    // Send verification email
+    const verificationLink = `http://localhost:${port}/verify/${verificationToken}`;
+    const mailOptions = {
+      from: process.env.login,
+      to: email,
+      subject: 'Verify your email for URL Slicer',
+      text: `Please click on this link to verify your email: ${verificationLink}`
+    };
+    
+    await transporter.sendMail(mailOptions);
+    res.redirect('/register-confirmation');
+  } catch (error) {
+    console.log(error);
+    req.flash('error', 'Error registering user');
+    res.redirect('/register');
+  }
 });
 
 app.get('/register-confirmation', (req, res) => {
   res.render('register-confirmation');
 });
 
-app.get('/verify/:token', (req, res) => {
+app.get('/verify/:token', async (req, res) => {
   const { token } = req.params;
-  db.run('UPDATE users SET verified = ? WHERE verification_token = ?', [true, token], (err) => {
-    if (err) {
-      return res.send('Error verifying email');
+  try {
+    const user = await User.findOneAndUpdate(
+      { verification_token: token },
+      { verified: true, $unset: { verification_token: 1 } },
+      { new: true }
+    );
+    if (!user) {
+      return res.send('Invalid verification token');
     }
     res.render('verification-success');
-  });
+  } catch (error) {
+    console.error(error);
+    res.send('Error verifying email');
+  }
 });
 
-app.get('/dashboard', (req, res) => {
+app.get('/dashboard', async (req, res) => {
   if (!req.user) {
     return res.redirect('/login');
   }
-  db.all('SELECT * FROM urls WHERE user_id = ?', [req.user.id], (err, urls) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send('Error fetching URLs');
-    }
+  try {
+    const urls = await Url.find({ user_id: req.user._id });
     res.render('dashboard', { user: req.user, urls: urls });
-  });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Error fetching URLs');
+  }
 });
 
-app.post('/shorten', (req, res) => {
+app.post('/shorten', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -296,30 +284,36 @@ app.post('/shorten', (req, res) => {
     return res.status(400).json({ error: 'Custom alias must be between 3 and 50 symbols' });
   }
 
-  // Check if the custom alias or short code is already taken
-  db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [shortCode, customAlias], (err, existingUrl) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Error checking for existing URL' });
-    }
+  try {
+    // Check if the custom alias or short code is already taken
+    const existingUrl = await Url.findOne({
+      $or: [{ short_code: shortCode }, { custom_alias: customAlias }]
+    });
 
     if (existingUrl) {
       return res.status(400).json({ error: 'The custom alias or generated short code is already taken' });
     }
 
-    // If the alias is not taken, proceed with creating the URL
-    db.run(
-      'INSERT INTO urls (user_id, original_url, short_code, custom_alias, max_uses, auto_delete_at, whitelist_mode, allowed_countries, blocked_countries, password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.id, originalUrl, shortCode, customAlias, maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, password],
-      function(err) {
-        if (err) {
-          console.error(err);
-          return res.status(500).json({ error: 'Error creating shortened URL' });
-        }
-        res.json({ shortCode: shortCode, customAlias: customAlias });
-      }
-    );
-  });
+    // If the alias is not taken, create the URL
+    const newUrl = new Url({
+      user_id: req.user._id,
+      original_url: originalUrl,
+      short_code: shortCode,
+      custom_alias: customAlias,
+      max_uses: maxUses,
+      auto_delete_at: autoDeleteAt,
+      whitelist_mode: whitelistMode,
+      allowed_countries: allowedCountries,
+      blocked_countries: blockedCountries,
+      password: password
+    });
+
+    await newUrl.save();
+    res.json({ shortCode: shortCode, customAlias: customAlias });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error creating shortened URL' });
+  }
 });
 
 // New routes for password reset
@@ -327,81 +321,87 @@ app.get('/forgot-password', (req, res) => {
   res.render('forgot-password');
 });
 
-app.post('/forgot-password', (req, res) => {
+app.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
-  db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
-    if (err || !user) {
+  try {
+    const user = await User.findOne({ email: email });
+    if (!user) {
       return res.render('forgot-password', { error: 'No account with that email address exists.' });
     }
 
     const resetToken = crypto.randomBytes(20).toString('hex');
-    const resetTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+    const resetTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
 
-    db.run('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?', 
-      [resetToken, resetTokenExpires.toISOString(), user.id], (err) => {
-      if (err) {
-        console.error(err);
-        return res.render('forgot-password', { error: 'An error occurred. Please try again.' });
-      }
+    user.reset_token = resetToken;
+    user.reset_token_expires = resetTokenExpires;
+    await user.save();
 
-      const resetUrl = `http://localhost:${port}/reset-password/${resetToken}`;
-      const mailOptions = {
-        from: process.env.login,
-        to: user.email,
-        subject: 'Password Reset for URL Slicer',
-        text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
-          Please click on the following link, or paste this into your browser to complete the process:\n\n
-          ${resetUrl}\n\n
-          If you did not request this, please ignore this email and your password will remain unchanged.\n`
-      };
+    const resetUrl = `http://localhost:${port}/reset-password/${resetToken}`;
+    const mailOptions = {
+      from: process.env.login,
+      to: user.email,
+      subject: 'Password Reset for URL Slicer',
+      text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n
+        Please click on the following link, or paste this into your browser to complete the process:\n\n
+        ${resetUrl}\n\n
+        If you did not request this, please ignore this email and your password will remain unchanged.\n`
+    };
 
-      transporter.sendMail(mailOptions, (error) => {
-        if (error) {
-          console.log(error);
-          return res.render('forgot-password', { error: 'An error occurred while sending the email. Please try again.' });
-        }
-        res.render('forgot-password', { message: 'An email has been sent to ' + user.email + ' with further instructions.' });
-      });
-    });
-  });
+    await transporter.sendMail(mailOptions);
+    res.render('forgot-password', { message: 'An email has been sent to ' + user.email + ' with further instructions.' });
+  } catch (error) {
+    console.error(error);
+    res.render('forgot-password', { error: 'An error occurred while sending the email. Please try again.' });
+  }
 });
 
-app.get('/reset-password/:token', (req, res) => {
+app.get('/reset-password/:token', async (req, res) => {
   const { token } = req.params;
-  db.get('SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?', 
-    [token, new Date().toISOString()], (err, user) => {
-    if (err || !user) {
+  try {
+    const user = await User.findOne({
+      reset_token: token,
+      reset_token_expires: { $gt: Date.now() }
+    });
+
+    if (!user) {
       return res.render('reset-password', { error: 'Password reset token is invalid or has expired.' });
     }
+
     res.render('reset-password', { token });
-  });
+  } catch (error) {
+    console.error(error);
+    res.render('reset-password', { error: 'An error occurred. Please try again.' });
+  }
 });
 
-app.post('/reset-password', (req, res) => {
+app.post('/reset-password', async (req, res) => {
   const { token, password, confirmPassword } = req.body;
 
   if (password !== confirmPassword) {
     return res.render('reset-password', { token, error: 'Passwords do not match.' });
   }
 
-  db.get('SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?', 
-    [token, new Date().toISOString()], async (err, user) => {
-    if (err || !user) {
+  try {
+    const user = await User.findOne({
+      reset_token: token,
+      reset_token_expires: { $gt: Date.now() }
+    });
+
+    if (!user) {
       return res.render('reset-password', { error: 'Password reset token is invalid or has expired.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    user.reset_token = undefined;
+    user.reset_token_expires = undefined;
+    await user.save();
 
-    db.run('UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?', 
-      [hashedPassword, user.id], (err) => {
-      if (err) {
-        console.error(err);
-        return res.render('reset-password', { error: 'An error occurred. Please try again.' });
-      }
-
-      res.redirect('/login');
-    });
-  });
+    res.redirect('/login');
+  } catch (error) {
+    console.error(error);
+    res.render('reset-password', { error: 'An error occurred. Please try again.' });
+  }
 });
 
 // Add the new route for the analytics page
@@ -412,20 +412,78 @@ app.get('/analytics', (req, res) => {
   res.render('analytics', { user: req.user });
 });
 
-// Add the new API route for fetching analytics data
 app.get('/api/analytics', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
-    const totalClicks = await getTotalClicks(req.user.id);
-    const totalUrls = await getTotalUrls(req.user.id);
+    const totalClicks = await Click.countDocuments({ url_id: { $in: await Url.find({ user_id: req.user._id }).distinct('_id') } });
+    const totalUrls = await Url.countDocuments({ user_id: req.user._id });
     const averageCTR = totalUrls > 0 ? totalClicks / totalUrls : 0;
-    const ctrOverTime = await getCTROverTime(req.user.id);
-    const geoDistribution = await getGeoDistribution(req.user.id);
-    const deviceStats = await getDeviceStats(req.user.id);
-    const browserStats = await getBrowserStats(req.user.id);
+    
+    const ctrOverTime = await Click.aggregate([
+      { $match: { url_id: { $in: await Url.find({ user_id: req.user._id }).distinct('_id') } } },
+      { $group: {
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$clicked_at" } },
+        clicks: { $sum: 1 }
+      }},
+      { $sort: { _id: 1 } }
+    ]);
+
+    const geoDistribution = await Click.aggregate([
+      { $match: { url_id: { $in: await Url.find({ user_id: req.user._id }).distinct('_id') } } },
+      { $group: {
+        _id: "$country",
+        count: { $sum: 1 }
+      }}
+    ]);
+
+    const deviceStats = await Click.aggregate([
+      { $match: { url_id: { $in: await Url.find({ user_id: req.user._id }).distinct('_id') } } },
+      { $group: {
+        _id: {
+          $cond: [
+            { $regexMatch: { input: "$user_agent", regex: /mobile/i } },
+            "Mobile",
+            {
+              $cond: [
+                { $regexMatch: { input: "$user_agent", regex: /tablet/i } },
+                "Tablet",
+                "Desktop"
+              ]
+            }
+          ]
+        },
+        count: { $sum: 1 }
+      }}
+    ]);
+
+    const browserStats = await Click.aggregate([
+      { $match: { url_id: { $in: await Url.find({ user_id: req.user._id }).distinct('_id') } } },
+      { $group: {
+        _id: {
+          $cond: [
+            { $regexMatch: { input: "$user_agent", regex: /chrome/i } },
+            "Chrome",
+            {
+              $cond: [
+                { $regexMatch: { input: "$user_agent", regex: /firefox/i } },
+                "Firefox",
+                {
+                  $cond: [
+                    { $regexMatch: { input: "$user_agent", regex: /safari/i } },
+                    "Safari",
+                    "Other"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        count: { $sum: 1 }
+      }}
+    ]);
 
     res.json({
       totalClicks,
@@ -459,18 +517,15 @@ app.post('/account/change-password', async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
   try {
-    const match = await bcrypt.compare(currentPassword, req.user.password);
-    if (!match) {
+    const user = await User.findById(req.user._id);
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
       return res.status(400).json({ error: 'Current password is incorrect' });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await new Promise((resolve, reject) => {
-      db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, req.user.id], (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    user.password = hashedPassword;
+    await user.save();
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
@@ -486,64 +541,32 @@ app.post('/account/delete', async (req, res) => {
   }
 
   try {
-    // Start a transaction
-    await new Promise((resolve, reject) => {
-      db.run('BEGIN TRANSACTION', (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-
-    // Delete user's URLs
-    await new Promise((resolve, reject) => {
-      db.run('DELETE FROM urls WHERE user_id = ?', [req.user.id], (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    // Delete user's URLs and associated data
+    const userUrls = await Url.find({ user_id: req.user._id });
+    for (const url of userUrls) {
+      await Click.deleteMany({ url_id: url._id });
+      await FailedAttempt.deleteMany({ url_id: url._id });
+    }
+    await Url.deleteMany({ user_id: req.user._id });
 
     // Delete user's account
-    await new Promise((resolve, reject) => {
-      db.run('DELETE FROM users WHERE id = ?', [req.user.id], (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-
-    // Commit the transaction
-    await new Promise((resolve, reject) => {
-      db.run('COMMIT', (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    await User.findByIdAndDelete(req.user._id);
 
     req.logout(() => {
       res.json({ message: 'Account deleted successfully' });
     });
   } catch (error) {
     console.error('Error deleting account:', error);
-    // Rollback the transaction in case of error
-    await new Promise((resolve) => {
-      db.run('ROLLBACK', resolve);
-    });
     res.status(500).json({ error: 'An error occurred while deleting the account' });
   }
 });
 
 app.get('/:code', async (req, res) => {
-  // make sure we're using the latest data
-  db.get('PRAGMA read_uncommitted = true');
   const { code } = req.params;
   log('Accessing URL', { code });
 
   try {
-    const url = await new Promise((resolve, reject) => {
-      db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
+    const url = await Url.findOne({ $or: [{ short_code: code }, { custom_alias: code }] });
 
     if (!url) {
       log('URL not found', { code });
@@ -566,27 +589,20 @@ app.get('/:code', async (req, res) => {
     log('Country detected', { country });
 
     if (url.whitelist_mode) {
-      const allowedCountries = url.allowed_countries ? url.allowed_countries.split(',') : [];
-      log('Whitelist mode', { allowedCountries });
-      if (!allowedCountries.includes(country)) {
+      log('Whitelist mode', { allowedCountries: url.allowed_countries });
+      if (!url.allowed_countries.includes(country)) {
         log('Access denied: country not in whitelist', { country });
         return res.status(403).render('access-denied');
       }
     } else {
-      const blockedCountries = url.blocked_countries ? url.blocked_countries.split(',') : [];
-      log('Blacklist mode', { blockedCountries });
-      if (blockedCountries.includes(country)) {
+      log('Blacklist mode', { blockedCountries: url.blocked_countries });
+      if (url.blocked_countries.includes(country)) {
         log('Access denied: country in blocklist', { country });
         return res.status(403).render('access-denied');
       }
     }
 
-    const clickCount = await new Promise((resolve, reject) => {
-      db.get('SELECT COUNT(*) as count FROM clicks WHERE url_id = ?', [url.id], (err, row) => {
-        if (err) reject(err);
-        else resolve(row.count);
-      });
-    });
+    const clickCount = await Click.countDocuments({ url_id: url._id });
 
     log('Current click count', { clickCount, maxUses: url.max_uses });
 
@@ -596,14 +612,13 @@ app.get('/:code', async (req, res) => {
     }
 
     const userAgent = req.headers['user-agent'];
-    await new Promise((resolve, reject) => {
-      db.run('INSERT INTO clicks (url_id, country, user_agent) VALUES (?, ?, ?)', [url.id, country, userAgent], (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
+    await Click.create({
+      url_id: url._id,
+      country: country,
+      user_agent: userAgent
     });
 
-    log('Click recorded', { urlId: url.id, country });
+    log('Click recorded', { urlId: url._id, country });
     log('Redirecting', { originalUrl: url.original_url });
     res.redirect(url.original_url);
 
@@ -619,25 +634,18 @@ app.post('/:code/verify', async (req, res) => {
   const ip = req.ip;
 
   try {
-    const url = await new Promise((resolve, reject) => {
-      db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
+    const url = await Url.findOne({ $or: [{ short_code: code }, { custom_alias: code }] });
 
     if (!url) {
       return res.status(404).json({ error: 'URL not found' });
     }
 
     // Check the number of failed attempts in the last 5 minutes
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const failedAttempts = await new Promise((resolve, reject) => {
-      db.get('SELECT COUNT(*) as count FROM failed_attempts WHERE url_id = ? AND ip_address = ? AND attempted_at > ?', 
-        [url.id, ip, fiveMinutesAgo], (err, row) => {
-        if (err) reject(err);
-        else resolve(row.count);
-      });
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const failedAttempts = await FailedAttempt.countDocuments({
+      url_id: url._id,
+      ip_address: ip,
+      attempted_at: { $gt: fiveMinutesAgo }
     });
 
     if (failedAttempts >= 5) {
@@ -646,11 +654,9 @@ app.post('/:code/verify', async (req, res) => {
 
     if (password !== url.password) {
       // Record failed attempt
-      await new Promise((resolve, reject) => {
-        db.run('INSERT INTO failed_attempts (url_id, ip_address) VALUES (?, ?)', [url.id, ip], (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
+      await FailedAttempt.create({
+        url_id: url._id,
+        ip_address: ip
       });
       return res.status(401).json({ error: 'Incorrect password' });
     }
@@ -664,49 +670,56 @@ app.post('/:code/verify', async (req, res) => {
   }
 });
 
-app.get('/stats/:code', (req, res) => {
+app.get('/stats/:code', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const { code } = req.params;
-  db.get('SELECT * FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], (err, url) => {
-    if (err || !url) {
-      return res.status(404).json({ error: 'URL not found' });
-    }
-
-    db.all('SELECT * FROM clicks WHERE url_id = ?', [url.id], (err, clicks) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Error fetching click statistics' });
-      }
-
-      db.get('SELECT COUNT(*) as failed_attempts FROM failed_attempts WHERE url_id = ?', [url.id], (err, failedAttempts) => {
-        if (err) {
-          console.error(err);
-          return res.status(500).json({ error: 'Error fetching failed attempts' });
-        }
-        res.json({ url, clicks, failedAttempts: failedAttempts.failed_attempts });
-      });
+  try {
+    const url = await Url.findOne({
+      $or: [{ short_code: code }, { custom_alias: code }],
+      user_id: req.user._id
     });
-  });
+
+    if (!url) {
+      return res.status(404).json({ error: 'URL not found' });
+    }
+
+    const clicks = await Click.find({ url_id: url._id });
+    const failedAttempts = await FailedAttempt.countDocuments({ url_id: url._id });
+
+    res.json({ url, clicks, failedAttempts });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error fetching click statistics' });
+  }
 });
 
-app.get('/url/:code', (req, res) => {
+app.get('/url/:code', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const { code } = req.params;
-  db.get('SELECT * FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], (err, url) => {
-    if (err || !url) {
+  try {
+    const url = await Url.findOne({
+      $or: [{ short_code: code }, { custom_alias: code }],
+      user_id: req.user._id
+    });
+
+    if (!url) {
       return res.status(404).json({ error: 'URL not found' });
     }
+
     res.json(url);
-  });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error fetching URL' });
+  }
 });
 
-app.put('/url/:code', (req, res) => {
+app.put('/url/:code', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -714,116 +727,94 @@ app.put('/url/:code', (req, res) => {
   const { code } = req.params;
   const { maxUses, autoDeleteAt, whitelistMode, allowedCountries, blockedCountries, password } = req.body;
 
-  // If autoDeleteAt is an empty string, set it to NULL in the database
-  const autoDeleteAtValue = autoDeleteAt === '' ? null : autoDeleteAt;
+  try {
+    const url = await Url.findOneAndUpdate(
+      {
+        $or: [{ short_code: code }, { custom_alias: code }],
+        user_id: req.user._id
+      },
+      {
+        max_uses: maxUses,
+        auto_delete_at: autoDeleteAt === '' ? null : autoDeleteAt,
+        whitelist_mode: whitelistMode,
+        allowed_countries: allowedCountries,
+        blocked_countries: blockedCountries,
+        password: password
+      },
+      { new: true }
+    );
 
-  db.run(
-    'UPDATE urls SET max_uses = ?, auto_delete_at = ?, whitelist_mode = ?, allowed_countries = ?, blocked_countries = ?, password = ? WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?',
-    [maxUses, autoDeleteAtValue, whitelistMode, allowedCountries, blockedCountries, password, code, code, req.user.id],
-    function(err) {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'Error updating URL' });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'URL not found' });
-      }
-      res.json({ message: 'URL updated successfully' });
+    if (!url) {
+      return res.status(404).json({ error: 'URL not found' });
     }
-  );
+
+    res.json({ message: 'URL updated successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error updating URL' });
+  }
 });
 
-app.delete('/url/:code', (req, res) => {
+app.delete('/url/:code', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const { code } = req.params;
 
-  // Start a transaction
-  db.serialize(() => {
-    db.run('BEGIN TRANSACTION');
-
-    // First, get the URL id
-    db.get('SELECT id FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], (err, url) => {
-      if (err) {
-        db.run('ROLLBACK');
-        console.error(err);
-        return res.status(500).json({ error: 'Error finding URL' });
-      }
-
-      if (!url) {
-        db.run('ROLLBACK');
-        return res.status(404).json({ error: 'URL not found' });
-      }
-
-      // Delete associated clicks
-      db.run('DELETE FROM clicks WHERE url_id = ?', [url.id], (err) => {
-        if (err) {
-          db.run('ROLLBACK');
-          console.error(err);
-          return res.status(500).json({ error: 'Error deleting associated clicks' });
-        }
-
-        // Delete associated failed attempts
-        db.run('DELETE FROM failed_attempts WHERE url_id = ?', [url.id], (err) => {
-          if (err) {
-            db.run('ROLLBACK');
-            console.error(err);
-            return res.status(500).json({ error: 'Error deleting associated failed attempts' });
-          }
-
-          // Now delete the URL
-          db.run('DELETE FROM urls WHERE id = ?', [url.id], function(err) {
-            if (err) {
-              db.run('ROLLBACK');
-              console.error(err);
-              return res.status(500).json({ error: 'Error deleting URL' });
-            }
-
-            db.run('COMMIT');
-            res.json({ message: 'URL and associated data deleted successfully' });
-          });
-        });
-      });
+  try {
+    const url = await Url.findOne({
+      $or: [{ short_code: code }, { custom_alias: code }],
+      user_id: req.user._id
     });
-  });
-});
 
-app.get('/find/:code', (req, res) => {
-  const { code } = req.params;
-  db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], (err, url) => {
-    if (err || !url) {
+    if (!url) {
       return res.status(404).json({ error: 'URL not found' });
     }
-    // construct the full URL
+
+    await Click.deleteMany({ url_id: url._id });
+    await FailedAttempt.deleteMany({ url_id: url._id });
+    await Url.findByIdAndDelete(url._id);
+
+    res.json({ message: 'URL and associated data deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error deleting URL' });
+  }
+});
+
+app.get('/find/:code', async (req, res) => {
+  const { code } = req.params;
+  try {
+    const url = await Url.findOne({ $or: [{ short_code: code }, { custom_alias: code }] });
+    if (!url) {
+      return res.status(404).json({ error: 'URL not found' });
+    }
     const fullUrl = `${req.protocol}://${req.get('host')}/${url.short_code}`;
     res.json({ fullUrl });
-  });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error finding URL' });
+  }
 });
 
 // Debug route
-app.get('/debug/:code', (req, res) => {
+app.get('/debug/:code', async (req, res) => {
   const { code } = req.params;
-  db.get('SELECT * FROM urls WHERE short_code = ? OR custom_alias = ?', [code, code], (err, url) => {
-    if (err || !url) {
+  try {
+    const url = await Url.findOne({ $or: [{ short_code: code }, { custom_alias: code }] });
+    if (!url) {
       return res.status(404).json({ error: 'URL not found' });
     }
-    db.get('SELECT COUNT(*) as click_count FROM clicks WHERE url_id = ?', [url.id], (err, result) => {
-      if (err) {
-        return res.status(500).json({ error: 'Error fetching click count' });
-      }
-      db.get('SELECT COUNT(*) as failed_attempts FROM failed_attempts WHERE url_id = ?', [url.id], (err, failedAttempts) => {
-        if (err) {
-          return res.status(500).json({ error: 'Error fetching failed attempts' });
-        }
-        res.json({ url, click_count: result.click_count, failed_attempts: failedAttempts.failed_attempts });
-      });
-    });
-  });
+    const clickCount = await Click.countDocuments({ url_id: url._id });
+    const failedAttempts = await FailedAttempt.countDocuments({ url_id: url._id });
+    res.json({ url, click_count: clickCount, failed_attempts: failedAttempts });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error fetching debug information' });
+  }
 });
 
-// Add this new route for generating QR codes
 app.get('/qr/:code', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -832,11 +823,9 @@ app.get('/qr/:code', async (req, res) => {
   const { code } = req.params;
   
   try {
-    const url = await new Promise((resolve, reject) => {
-      db.get('SELECT * FROM urls WHERE (short_code = ? OR custom_alias = ?) AND user_id = ?', [code, code, req.user.id], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
+    const url = await Url.findOne({
+      $or: [{ short_code: code }, { custom_alias: code }],
+      user_id: req.user._id
     });
 
     if (!url) {
@@ -853,127 +842,122 @@ app.get('/qr/:code', async (req, res) => {
   }
 });
 
-
-
 // Helper functions for fetching analytics data
 async function getTotalClicks(userId) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT COUNT(*) as count FROM clicks WHERE url_id IN (SELECT id FROM urls WHERE user_id = ?)', [userId], (err, row) => {
-      if (err) reject(err);
-      else resolve(row.count);
-    });
-  });
+  return Click.countDocuments({ url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } });
 }
 
 async function getTotalUrls(userId) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT COUNT(*) as count FROM urls WHERE user_id = ?', [userId], (err, row) => {
-      if (err) reject(err);
-      else resolve(row.count);
-    });
-  });
+  return Url.countDocuments({ user_id: userId });
 }
 
 async function getCTROverTime(userId) {
-  return new Promise((resolve, reject) => {
-    db.all(`
-      SELECT DATE(clicks.clicked_at) as date, COUNT(*) as clicks, COUNT(DISTINCT urls.id) as urls
-      FROM clicks
-      JOIN urls ON clicks.url_id = urls.id
-      WHERE urls.user_id = ?
-      GROUP BY DATE(clicks.clicked_at)
-      ORDER BY date
-    `, [userId], (err, rows) => {
-      if (err) reject(err);
-      else {
-        const ctrData = rows.map(row => ({
-          date: row.date,
-          ctr: row.urls > 0 ? row.clicks / row.urls : 0
-        }));
-        resolve(ctrData);
+  const clicks = await Click.aggregate([
+    { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
+    {
+      $group: {
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$clicked_at" } },
+        clicks: { $sum: 1 }
       }
-    });
+    },
+    { $sort: { _id: 1 } }
+  ]);
+
+  const urls = await Url.aggregate([
+    { $match: { user_id: mongoose.Types.ObjectId(userId) } },
+    {
+      $group: {
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$created_at" } },
+        urls: { $sum: 1 }
+      }
+    },
+    { $sort: { _id: 1 } }
+  ]);
+
+  const ctrData = clicks.map(click => {
+    const urlCount = urls.find(url => url._id === click._id)?.urls || 1;
+    return {
+      date: click._id,
+      ctr: click.clicks / urlCount
+    };
   });
+
+  return ctrData;
 }
 
 async function getGeoDistribution(userId) {
-  return new Promise((resolve, reject) => {
-    db.all(`
-      SELECT clicks.country, COUNT(*) as count
-      FROM clicks
-      JOIN urls ON clicks.url_id = urls.id
-      WHERE urls.user_id = ?
-      GROUP BY clicks.country
-    `, [userId], (err, rows) => {
-      if (err) reject(err);
-      else {
-        const geoData = {};
-        rows.forEach(row => {
-          const geo = geoip.lookup(row.country);
-          if (geo) {
-            const key = `${geo.ll[0]},${geo.ll[1]}`;
-            geoData[key] = (geoData[key] || 0) + row.count;
-          }
-        });
-        resolve(geoData);
+  const geoData = await Click.aggregate([
+    { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
+    {
+      $group: {
+        _id: "$country",
+        count: { $sum: 1 }
       }
-    });
-  });
+    }
+  ]);
+
+  return geoData.reduce((acc, item) => {
+    const geo = geoip.lookup(item._id);
+    if (geo) {
+      const key = `${geo.ll[0]},${geo.ll[1]}`;
+      acc[key] = (acc[key] || 0) + item.count;
+    }
+    return acc;
+  }, {});
 }
 
 async function getDeviceStats(userId) {
-  return new Promise((resolve, reject) => {
-    db.all(`
-      SELECT clicks.user_agent
-      FROM clicks
-      JOIN urls ON clicks.url_id = urls.id
-      WHERE urls.user_id = ?
-    `, [userId], (err, rows) => {
-      if (err) reject(err);
-      else {
-        const deviceStats = {
-          Desktop: 0,
-          Mobile: 0,
-          Tablet: 0,
-          Other: 0
-        };
-        rows.forEach(row => {
-          const agent = useragent.parse(row.user_agent);
-          if (agent.isDesktop) deviceStats.Desktop++;
-          else if (agent.isMobile) deviceStats.Mobile++;
-          else if (agent.isTablet) deviceStats.Tablet++;
-          else deviceStats.Other++;
-        });
-        resolve(deviceStats);
+  return Click.aggregate([
+    { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
+    {
+      $group: {
+        _id: {
+          $cond: [
+            { $regexMatch: { input: "$user_agent", regex: /mobile/i } },
+            "Mobile",
+            {
+              $cond: [
+                { $regexMatch: { input: "$user_agent", regex: /tablet/i } },
+                "Tablet",
+                "Desktop"
+              ]
+            }
+          ]
+        },
+        count: { $sum: 1 }
       }
-    });
-  });
+    }
+  ]);
 }
 
 async function getBrowserStats(userId) {
-  return new Promise((resolve, reject) => {
-    db.all(`
-      SELECT clicks.user_agent
-      FROM clicks
-      JOIN urls ON clicks.url_id = urls.id
-      WHERE urls.user_id = ?
-    `, [userId], (err, rows) => {
-      if (err) reject(err);
-      else {
-        const browserStats = {};
-        rows.forEach(row => {
-          const agent = useragent.parse(row.user_agent);
-          const browser = agent.browser;
-          if (browserStats[browser]) {
-            browserStats[browser]++;
-          } else {
-            browserStats[browser] = 1;
-          }
-        });
-        resolve(browserStats);
+  return Click.aggregate([
+    { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
+    {
+      $group: {
+        _id: {
+          $cond: [
+            { $regexMatch: { input: "$user_agent", regex: /chrome/i } },
+            "Chrome",
+            {
+              $cond: [
+                { $regexMatch: { input: "$user_agent", regex: /firefox/i } },
+                "Firefox",
+                {
+                  $cond: [
+                    { $regexMatch: { input: "$user_agent", regex: /safari/i } },
+                    "Safari",
+                    "Other"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        count: { $sum: 1 }
       }
-    });
-  });
+    }
+  ]);
 }
 
 // Error handling middleware
@@ -988,13 +972,14 @@ app.listen(port, () => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('Closing database connection...');
-  db.close((err) => {
-    if (err) {
-      console.error(err.message);
-    }
-    console.log('Database connection closed.');
+process.on('SIGINT', async () => {
+  console.log('Closing MongoDB connection...');
+  try {
+    await mongoose.connection.close();
+    console.log('MongoDB connection closed.');
     process.exit(0);
-  });
+  } catch (err) {
+    console.error('Error closing MongoDB connection:', err);
+    process.exit(1);
+  }
 });
