@@ -56,7 +56,8 @@ const clickSchema = new mongoose.Schema({
   url_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Url', required: true },
   clicked_at: { type: Date, default: Date.now },
   country: String,
-  user_agent: String
+  browser: String,
+  device: String
 });
 
 const failedAttemptSchema = new mongoose.Schema({
@@ -626,14 +627,15 @@ app.get('/:code', async (req, res) => {
       return res.status(410).render('max-uses-reached');
     }
 
-    const userAgent = req.headers['user-agent'];
+    const userAgent = req.useragent;
     await Click.create({
       url_id: url._id,
       country: country,
-      user_agent: userAgent
+      browser: userAgent.browser,
+      device: userAgent.isMobile ? 'Mobile' : (userAgent.isTablet ? 'Tablet' : 'Desktop')
     });
 
-    log('Click recorded', { urlId: url._id, country });
+    log('Click recorded', { urlId: url._id, country, browser: userAgent.browser, device: userAgent.isMobile ? 'Mobile' : (userAgent.isTablet ? 'Tablet' : 'Desktop') });
     log('Redirecting', { originalUrl: url.original_url });
     res.redirect(url.original_url);
 
@@ -926,54 +928,26 @@ async function getGeoDistribution(userId) {
   }, {});
 }
 
+// Update the getDeviceStats function
 async function getDeviceStats(userId) {
   return Click.aggregate([
     { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
     {
       $group: {
-        _id: {
-          $cond: [
-            { $regexMatch: { input: "$user_agent", regex: /mobile/i } },
-            "Mobile",
-            {
-              $cond: [
-                { $regexMatch: { input: "$user_agent", regex: /tablet/i } },
-                "Tablet",
-                "Desktop"
-              ]
-            }
-          ]
-        },
+        _id: "$device",
         count: { $sum: 1 }
       }
     }
   ]);
 }
 
+// Update the getBrowserStats function
 async function getBrowserStats(userId) {
   return Click.aggregate([
     { $match: { url_id: { $in: await Url.find({ user_id: userId }).distinct('_id') } } },
     {
       $group: {
-        _id: {
-          $cond: [
-            { $regexMatch: { input: "$user_agent", regex: /chrome/i } },
-            "Chrome",
-            {
-              $cond: [
-                { $regexMatch: { input: "$user_agent", regex: /firefox/i } },
-                "Firefox",
-                {
-                  $cond: [
-                    { $regexMatch: { input: "$user_agent", regex: /safari/i } },
-                    "Safari",
-                    "Other"
-                  ]
-                }
-              ]
-            }
-          ]
-        },
+        _id: "$browser",
         count: { $sum: 1 }
       }
     }

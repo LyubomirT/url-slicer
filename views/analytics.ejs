@@ -70,7 +70,7 @@ function createCTRChart(ctrData) {
   new Chart(ctx, {
     type: 'line',
     data: {
-      labels: ctrData.map(d => d.date),
+      labels: ctrData.map(d => d._id),
       datasets: [{
         label: 'CTR',
         data: ctrData.map(d => d.ctr * 100),
@@ -100,15 +100,15 @@ function createGeoMap(geoData) {
     attribution: '© OpenStreetMap contributors'
   }).addTo(map);
 
-  for (const coords in geoData) {
-    const [lat, lon] = coords.split(',').map(Number);
+  for (const country in geoData) {
+    const [lat, lon] = country.split(',').map(Number);
     if (!isNaN(lat) && !isNaN(lon)) {
       L.circle([lat, lon], {
         color: 'red',
         fillColor: '#f03',
         fillOpacity: 0.5,
-        radius: Math.sqrt(geoData[coords]) * 10000
-      }).addTo(map).bindPopup(`Clicks: ${geoData[coords]}`);
+        radius: Math.sqrt(geoData[country]) * 50000
+      }).addTo(map).bindPopup(`Clicks: ${geoData[country]}`);
     }
   }
 }
@@ -118,10 +118,10 @@ function createDeviceChart(deviceData) {
   new Chart(ctx, {
     type: 'pie',
     data: {
-      labels: Object.keys(deviceData),
+      labels: deviceData.map(d => d._id),
       datasets: [{
-        data: Object.values(deviceData),
-        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+        data: deviceData.map(d => d.count),
+        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
       }]
     },
     options: {
@@ -144,10 +144,10 @@ function createBrowserChart(browserData) {
   new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: Object.keys(browserData),
+      labels: browserData.map(d => d._id),
       datasets: [{
         label: 'Usage',
-        data: Object.values(browserData),
+        data: browserData.map(d => d.count),
         backgroundColor: 'rgba(75, 192, 192, 0.6)',
         borderColor: 'rgba(75, 192, 192, 1)',
         borderWidth: 1
