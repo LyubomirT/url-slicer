@@ -107,10 +107,12 @@ function fetchUrlList() {
         const urlPanel = document.createElement('div');
         urlPanel.className = 'panel url-panel';
         urlPanel.innerHTML = `
-          <h3>${originalUrl}</h3>
-          <p>Short URL: ${shortCode}</p>
-          <h4>Country Statistics</h4>
-          <div class="country-list" id="country-list-${shortCode}">Loading...</div>
+          <h3 class="url-title">${originalUrl}</h3>
+          <p class="short-url-display">Short URL: <a href="/${shortCode}" target="_blank">${shortCode}</a></p>
+          <h4 class="country-stats-title">Country Statistics</h4>
+          <div class="country-list" id="country-list-${shortCode}">
+            <div class="loading-spinner"></div>
+          </div>
         `;
 
         urlListContainer.appendChild(urlPanel);
@@ -192,3 +194,98 @@ function createBrowserChart(browserData) {
   });
 }
 </script>
+
+<style>
+.url-panel {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease;
+}
+
+.url-panel:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.url-title {
+  font-size: 1.2em;
+  color: var(--primary-color);
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+.short-url-display {
+  font-size: 0.9em;
+  color: var(--secondary-color);
+  margin-bottom: 15px;
+}
+
+.short-url-display a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.short-url-display a:hover {
+  text-decoration: underline;
+}
+
+.country-stats-title {
+  font-size: 1em;
+  color: var(--text-color);
+  margin-bottom: 10px;
+}
+
+.country-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.country-stats {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.country-stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s ease;
+}
+
+.country-stat-item:last-child {
+  border-bottom: none;
+}
+
+.country-stat-item:hover {
+  background-color: rgba(var(--primary-color-rgb), 0.05);
+}
+
+.country-name {
+  font-weight: bold;
+}
+
+.country-clicks {
+  color: var(--secondary-color);
+}
+
+.loading-spinner {
+  border: 4px solid var(--border-color);
+  border-top: 4px solid var(--primary-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
