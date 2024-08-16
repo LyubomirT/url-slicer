@@ -100,14 +100,16 @@ function createGeoMap(geoData) {
     attribution: '© OpenStreetMap contributors'
   }).addTo(map);
 
-  for (const country in geoData) {
-    const [lat, lon] = country.split(',');
-    L.circle([lat, lon], {
-      color: 'red',
-      fillColor: '#f03',
-      fillOpacity: 0.5,
-      radius: Math.sqrt(geoData[country]) * 10000
-    }).addTo(map).bindPopup(`Clicks: ${geoData[country]}`);
+  for (const coords in geoData) {
+    const [lat, lon] = coords.split(',').map(Number);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      L.circle([lat, lon], {
+        color: 'red',
+        fillColor: '#f03',
+        fillOpacity: 0.5,
+        radius: Math.sqrt(geoData[coords]) * 10000
+      }).addTo(map).bindPopup(`Clicks: ${geoData[coords]}`);
+    }
   }
 }
 

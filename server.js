@@ -558,6 +558,12 @@ app.post('/account/delete', async (req, res) => {
   }
 });
 
+// Add this function to get the client's IP address
+function getClientIp(req) {
+  return req.headers['x-forwarded-for']?.split(',').shift()
+    || req.socket?.remoteAddress;
+}
+
 app.get('/:code', async (req, res) => {
   const { code } = req.params;
   log('Accessing URL', { code });
@@ -578,12 +584,24 @@ app.get('/:code', async (req, res) => {
       return res.render('password-entry', { code: code });
     }
 
-    const ip = req.ip;
+    const ip = getClientIp(req);
     log('Client IP', { ip });
 
-    const response = await axios.get(`http://ip-api.com/json/${ip}`);
-    const country = response.data.countryCode;
-    log('Country detected', { country });
+    let country = 'Unknown';
+    const geo = geoip.lookup(ip);
+    if (geo) {
+      country = geo.country;
+      log('Country detected', { country, ip });
+    } else {
+      log('Failed to detect country with geoip, trying external API', { ip });
+      try {
+        const response = await axios.get(`http://ip-api.com/json/${ip}`);
+        country = response.data.countryCode;
+        log('Country detected from external API', { country });
+      } catch (apiError) {
+        log('Failed to detect country from external API', { error: apiError.message });
+      }
+    }
 
     if (url.whitelist_mode) {
       log('Whitelist mode', { allowedCountries: url.allowed_countries });
@@ -894,10 +912,15 @@ async function getGeoDistribution(userId) {
   ]);
 
   return geoData.reduce((acc, item) => {
-    const geo = geoip.lookup(item._id);
-    if (geo) {
-      const key = `${geo.ll[0]},${geo.ll[1]}`;
-      acc[key] = (acc[key] || 0) + item.count;
+    if (item._id) {  // Check if country code exists
+      const geo = geoip.lookup(item._id);
+      if (geo && geo.ll && geo.ll.length === 2) {
+        const [lat, lon] = geo.ll;
+        if (typeof lat === 'number' && typeof lon === 'number') {
+          const key = `${lat},${lon}`;
+          acc[key] = (acc[key] || 0) + item.count;
+        }
+      }
     }
     return acc;
   }, {});
