@@ -25,16 +25,16 @@
   </div>
 
   <div class="panel">
-    <h2>URL Statistics</h2>
-    <div id="url-list"></div>
+    <h2>Geo Distribution of Clicks</h2>
+    <div id="country-list" class="country-list"></div>
   </div>
 
-  <div class="panel statsChart">
+  <div class="panel" class="statsChart">
     <h2>Device Statistics</h2>
     <canvas id="deviceChart"></canvas>
   </div>
 
-  <div class="panel statsChart">
+  <div class="panel" class="statsChart">
     <h2>Browser Statistics</h2>
     <canvas id="browserChart"></canvas>
   </div>
@@ -49,9 +49,9 @@ document.addEventListener('DOMContentLoaded', function() {
     .then(data => {
       updateOverallStats(data);
       createCTRChart(data.ctrOverTime);
+      createCountryList(data.geoDistribution);
       createDeviceChart(data.deviceStats);
       createBrowserChart(data.browserStats);
-      fetchUrlList();
     })
     .catch(error => console.error('Error fetching analytics data:', error));
 });
@@ -91,54 +91,23 @@ function createCTRChart(ctrData) {
   });
 }
 
-function fetchUrlList() {
-  fetch('/dashboard')
-    .then(response => response.text())
-    .then(html => {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const urlItems = doc.querySelectorAll('.url-item');
-      const urlListContainer = document.getElementById('url-list');
+function createCountryList(geoData) {
+  const countryList = document.getElementById('country-list');
+  const sortedCountries = Object.entries(geoData)
+    .sort((a, b) => b[1] - a[1]);  // Sort by click count, descending
 
-      urlItems.forEach(item => {
-        const shortCode = item.querySelector('.short-url a').textContent.trim();
-        const originalUrl = item.querySelector('.original-url').textContent;
+  let listHtml = '<ul class="country-stats">';
+  sortedCountries.forEach(([country, clicks]) => {
+    listHtml += `
+      <li class="country-stat-item">
+        <span class="country-name">${country}</span>
+        <span class="country-clicks">${clicks} click${clicks !== 1 ? 's' : ''}</span>
+      </li>
+    `;
+  });
+  listHtml += '</ul>';
 
-        const urlPanel = document.createElement('div');
-        urlPanel.className = 'panel url-panel';
-        urlPanel.innerHTML = `
-          <h3>${originalUrl}</h3>
-          <p>Short URL: ${shortCode}</p>
-          <h4>Country Statistics</h4>
-          <div class="country-list" id="country-list-${shortCode}">Loading...</div>
-        `;
-
-        urlListContainer.appendChild(urlPanel);
-
-        fetchCountryStats(shortCode);
-      });
-    })
-    .catch(error => console.error('Error fetching URL list:', error));
-}
-
-function fetchCountryStats(shortCode) {
-  fetch(`/api/country-stats/${shortCode}`)
-    .then(response => response.json())
-    .then(data => {
-      const countryList = document.getElementById(`country-list-${shortCode}`);
-      let listHtml = '<ul class="country-stats">';
-      data.forEach(({ _id, count }) => {
-        listHtml += `
-          <li class="country-stat-item">
-            <span class="country-name">${_id}</span>
-            <span class="country-clicks">${count} click${count !== 1 ? 's' : ''}</span>
-          </li>
-        `;
-      });
-      listHtml += '</ul>';
-      countryList.innerHTML = listHtml;
-    })
-    .catch(error => console.error(`Error fetching country stats for ${shortCode}:`, error));
+  countryList.innerHTML = listHtml;
 }
 
 function createDeviceChart(deviceData) {
@@ -192,3 +161,34 @@ function createBrowserChart(browserData) {
   });
 }
 </script>
+
+<style>
+.country-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.country-stats {
+  list-style-type: none;
+  padding: 0;
+}
+
+.country-stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.country-stat-item:last-child {
+  border-bottom: none;
+}
+
+.country-name {
+  font-weight: bold;
+}
+
+.country-clicks {
+  color: #666;
+}
+</style>
