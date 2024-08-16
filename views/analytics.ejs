@@ -151,7 +151,7 @@ function createDeviceChart(deviceData) {
       labels: deviceData.map(d => d._id),
       datasets: [{
         data: deviceData.map(d => d.count),
-        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56'] 
+        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
       }]
     },
     options: {
@@ -162,14 +162,14 @@ function createDeviceChart(deviceData) {
         },
         title: {
           display: true,
-          text: 'Device Usage'  
+          text: 'Device Usage'
         }
       }
     }
   });
 }
 
-function createBrowserChart(browserData) {  
+function createBrowserChart(browserData) {
   const ctx = document.getElementById('browserChart').getContext('2d');
   new Chart(ctx, {
     type: 'bar',
@@ -178,10 +178,10 @@ function createBrowserChart(browserData) {
       datasets: [{
         label: 'Usage',
         data: browserData.map(d => d.count),
-        backgroundColor: 'rgba(75, 192, 192, 0.6)', 
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
         borderColor: 'rgba(75, 192, 192, 1)',
         borderWidth: 1
-      }]  
+      }]
     },
     options: {
       responsive: true,
