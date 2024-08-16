@@ -29,12 +29,12 @@
     <div id="url-list"></div>
   </div>
 
-  <div class="panel" class="statsChart">
+  <div class="panel statsChart">
     <h2>Device Statistics</h2>
     <canvas id="deviceChart"></canvas>
   </div>
 
-  <div class="panel" class="statsChart">
+  <div class="panel statsChart">
     <h2>Browser Statistics</h2>
     <canvas id="browserChart"></canvas>
   </div>
@@ -105,7 +105,7 @@ function fetchUrlList() {
         const originalUrl = item.querySelector('.original-url').textContent;
 
         const urlPanel = document.createElement('div');
-        urlPanel.className = 'url-panel';
+        urlPanel.className = 'panel url-panel';
         urlPanel.innerHTML = `
           <h3>${originalUrl}</h3>
           <p>Short URL: ${shortCode}</p>
@@ -192,89 +192,3 @@ function createBrowserChart(browserData) {
   });
 }
 </script>
-
-<style>
-.analytics-container {
-  display: grid;
-  gap: 20px;
-}
-
-.panel {
-  background-color: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-}
-
-.stat-box {
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  padding: 15px;
-  text-align: center;
-}
-
-.stat-box h3 {
-  margin-top: 0;
-  color: #495057;
-}
-
-.stat-box p {
-  font-size: 24px;
-  font-weight: bold;
-  margin: 10px 0 0;
-  color: #0056b3;
-}
-
-.url-panel {
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 5px;
-}
-
-.country-list {
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.country-stats {
-  list-style-type: none;
-  padding: 0;
-}
-
-.country-stat-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 5px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.country-stat-item:last-child {
-  border-bottom: none;
-}
-
-.country-name {
-  font-weight: bold;
-}
-
-.country-clicks {
-  color: #666;
-}
-
-canvas {
-  max-width: 100%;
-  height: auto;
-}
-
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
