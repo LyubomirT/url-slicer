@@ -103,6 +103,17 @@ function createCTRChart(ctrData) {
   });
 }
 
+function convertCountryCode(code) {
+  const codeMap = {
+    'UK': 'GB', // United Kingdom
+    'EL': 'GR', // Greece
+    'UK': 'GB', // United Kingdom
+    'VA': 'VA', // Vatican City (Holy See)
+    // Add more mappings as needed
+  };
+  return codeMap[code] || code;
+}
+
 function createGeoMap(geoData) {
   if (!window.countriesGeoJSON) {
     console.error('GeoJSON data not loaded');
@@ -119,7 +130,8 @@ function createGeoMap(geoData) {
   // Convert geoData to the format expected by the choropleth plugin
   const clicksData = {};
   for (const country in geoData) {
-    clicksData[country] = geoData[country];
+    const isoCode = convertCountryCode(country);
+    clicksData[isoCode] = geoData[country];
   }
 
   console.log('Processed clicksData:', clicksData);
