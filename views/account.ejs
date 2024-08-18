@@ -7,6 +7,17 @@
 </div>
 
 <div class="panel">
+  <h2>Notifications Preferences</h2>
+  <form id="notifications-form">
+    <div class="form-group form-group-checkbox">
+      <input type="checkbox" id="email-notifications" <% if (user.email_notifications) { %>checked<% } %>>
+      <label for="email-notifications">Receive email notifications</label>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+  </form>
+</div>
+
+<div class="panel">
   <h2>Change Password</h2>
   <form id="change-password-form">
     <div class="form-group">
@@ -75,6 +86,25 @@ $(document).ready(function() {
         }
       });
     }
+  });
+
+  $('#notifications-form').submit(function(e) {
+    e.preventDefault();
+    const emailNotifications = $('#email-notifications').is(':checked');
+
+    $.ajax({
+      url: '/account/email-notifications',
+      method: 'POST',
+      data: {
+        emailNotifications: emailNotifications
+      },
+      success: function(response) {
+        alert('Notification preferences updated successfully.');
+      },
+      error: function(xhr) {
+        alert('Error: ' + xhr.responseJSON.error);
+      }
+    });
   });
 });
 </script>

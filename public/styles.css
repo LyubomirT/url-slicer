@@ -212,6 +212,11 @@ select:focus {
   color: var(--text-color);
 }
 
+.form-group-checkbox label{
+  display: inline-block;
+  margin-left: 10px;
+}
+
 .error {
   color: var(--error-color);
   margin-bottom: 15px;

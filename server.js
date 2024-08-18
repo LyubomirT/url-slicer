@@ -32,6 +32,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
   verified: { type: Boolean, default: false },
+  email_notifications: { type: Boolean, default: true },
   verification_token: String,
   reset_token: String,
   reset_token_expires: Date,
@@ -145,7 +146,7 @@ async function checkUrlAboutToExpire() {
         text: text
       };
     
-      sendEmail(mailOptions);
+    //  sendEmail(mailOptions);
       console.log('Email sent to', user.email, 'about URLs about to expire');
     }
   } catch (error) {
@@ -154,7 +155,7 @@ async function checkUrlAboutToExpire() {
 }
 
 // Run checkUrlAboutToExpire every 24 hours
-setInterval(checkUrlAboutToExpire, 86400000);
+//setInterval(checkUrlAboutToExpire, 86400000);
 
 async function sendEmail({ from, email, subject, text }) {
   
@@ -269,6 +270,7 @@ app.post('/register', async (req, res) => {
       email: email,
       password: hashedPassword,
       verified: false,
+      email_notifications: true,
       verification_token: verificationToken
     });
 
@@ -554,6 +556,25 @@ app.get('/account', (req, res) => {
     return res.redirect('/login');
   }
   res.render('account', { user: req.user });
+});
+
+// Add this new route for updating email notifications preferences
+app.post('/account/email-notifications', async (req, res) => {
+  if(!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { emailNotifications } = req.body;
+
+  try {
+    const user = await User.findById(req.user._id);
+    user.email_notifications = emailNotifications;
+    await user.save();
+    res.json({ message: 'Email notifications updated successfully' });
+  } catch (error) {
+    console.error('Error updating email notifications:', error);
+    res.status(500).json({ error: 'An error occurred while updating email notifications' });
+  }
 });
 
 // Add this new route for changing the password
