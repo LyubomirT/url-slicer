@@ -134,19 +134,22 @@ async function checkUrlAboutToExpire() {
 
     for (const userUrl of userUrls) {
       const user = await User.findById(userUrl._id);
+      if(!user.email_notifications) {
+        continue;
+      }
       const subject = "URLs about to expire";
-      const text = userUrl.urls
-        .map((url) => `URL ${url.short_code} is about to expire in 24 hours`)
-        .join("\n");
+
+      const text = `Hello,\nThis is a reminder that the following URLs are about to expire in 24 hours:;\n\n`;
+      const urlsToExpire = userUrl.urls.map((url) => `URL ${url.short_code}`).join("\n");
 
       const mailOptions = {
         from: process.env.login,
         to: user.email,
         subject: subject,
-        text: text
+        text: text + urlsToExpire,
       };
     
-    //  sendEmail(mailOptions);
+      sendEmail(mailOptions);
       console.log('Email sent to', user.email, 'about URLs about to expire');
     }
   } catch (error) {
@@ -155,13 +158,13 @@ async function checkUrlAboutToExpire() {
 }
 
 // Run checkUrlAboutToExpire every 24 hours
-//setInterval(checkUrlAboutToExpire, 86400000);
+setInterval(checkUrlAboutToExpire, 86400000);
 
-async function sendEmail({ from, email, subject, text }) {
+async function sendEmail({ from, to, subject, text }) {
   
   const mailOptions = {
     from: from,
-    to: email,
+    to: to,
     subject: subject,
     text: text
   };
