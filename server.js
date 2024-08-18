@@ -112,6 +112,66 @@ async function deleteExpiredUrls() {
 // Run deleteExpiredUrls every minute
 setInterval(deleteExpiredUrls, 60000);
 
+async function checkUrlAboutToExpire() {
+  const now = new Date();
+  const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  try {
+    const userUrls = await Url.aggregate([
+      {
+        $match: {
+          created_at: { $lte: now, $ne: null },
+          auto_delete_at: { $gt: now, $lt: in24Hours, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$user_id",
+          urls: { $push: "$$ROOT" }, // Push all matched documents into an array under 'urls'
+        },
+      },
+    ]);
+
+    for (const userUrl of userUrls) {
+      const user = await User.findById(userUrl._id);
+      const subject = "URLs about to expire";
+      const text = userUrl.urls
+        .map((url) => `URL ${url.short_code} is about to expire in 24 hours`)
+        .join("\n");
+
+      const mailOptions = {
+        from: process.env.login,
+        to: user.email,
+        subject: subject,
+        text: text
+      };
+    
+      sendEmail(mailOptions);
+      console.log('Email sent to', user.email, 'about URLs about to expire');
+    }
+  } catch (error) {
+    console.error("Error checking URLs about to expire:", error);
+  }
+}
+
+// Run checkUrlAboutToExpire every 24 hours
+setInterval(checkUrlAboutToExpire, 86400000);
+
+async function sendEmail({ from, email, subject, text }) {
+  
+  const mailOptions = {
+    from: from,
+    to: email,
+    subject: subject,
+    text: text
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  }catch (error) {
+    console.error('Error sending email:', error);
+  }
+}
+
 // Logging function
 function log(message, data = {}) {
   console.log(JSON.stringify({ timestamp: new Date().toISOString(), message, ...data }));
@@ -225,7 +285,7 @@ app.post('/register', async (req, res) => {
       text: `Please click on this link to verify your email: ${verificationLink}`
     };
     
-    await transporter.sendMail(mailOptions);
+    sendEmail(mailOptions);
     res.redirect('/register-confirmation');
   } catch (error) {
     console.log(error);
@@ -345,7 +405,7 @@ app.post('/forgot-password', async (req, res) => {
         If you did not request this, please ignore this email and your password will remain unchanged.\n`
     };
 
-    await transporter.sendMail(mailOptions);
+    sendEmail(mailOptions);
     res.render('forgot-password', { message: 'An email has been sent to ' + user.email + ' with further instructions.' });
   } catch (error) {
     console.error(error);
