@@ -139,7 +139,7 @@ async function checkUrlAboutToExpire() {
       }
       const subject = "URLs about to expire";
 
-      const text = `Hello,\nThis is a reminder that the following URLs are about to expire in 24 hours:;\n\n`;
+      const text = `Hello,\nThis is a reminder that the following URLs are about to expire in 24 hours:\n\n`;
       const urlsToExpire = userUrl.urls.map((url) => `•URL: ${url.short_code}`).join("\n");
 
       const mailOptions = {
