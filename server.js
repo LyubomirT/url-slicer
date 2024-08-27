@@ -160,7 +160,7 @@ passport.deserializeUser(async (id, done) => {
 
 // Nodemailer configuration
 const transporter = nodemailer.createTransport({
-  host: "smtp.office365.com",
+  host: process.env.host,
   port: 587,
   secure: false,
   auth: {
@@ -315,11 +315,9 @@ app.post("/shorten", async (req, res) => {
     });
 
     if (existingUrl) {
-      return res
-        .status(400)
-        .json({
-          error: "The custom alias or generated short code is already taken",
-        });
+      return res.status(400).json({
+        error: "The custom alias or generated short code is already taken",
+      });
     }
 
     // If the alias is not taken, create the URL
