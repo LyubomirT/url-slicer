@@ -1,0 +1,77 @@
+<div class="hero-section">
+  <div class="hero-content">
+    <div class="cta-buttons">
+      <h2 class="hero-subtitle">Frequently Asked Questions</h2>
+      <a href="/login" class="btn btn-primary btn-large">Get Started Now</a>
+    </div>
+
+    <div class="faq-container">
+      <div class="faq-item">
+        <div class="faq-question">1. What is URL Slicer?</div>
+        <div class="faq-answer">
+          URL Slicer is a tool designed to create shorter, more manageable links
+          for sharing on social media, emails, and marketing campaigns. It
+          simplifies long URLs into concise links that are easier to share and
+          remember.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question">
+          2. How do I create a short link using URL Slicer?
+        </div>
+        <div class="faq-answer">
+          To create a short link, follow these steps: Sign Up: Create your free
+          account in seconds. <br />
+          Paste Your URL: Enter the long URL you want to shorten. <br />
+          Customize: Add any custom options or restrictions if needed. <br />
+          Share: Copy your new short URL and share it wherever you like..
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question">3. Is URL Slicer free to use?</div>
+        <div class="faq-answer">
+          Yes, URL Slicer is completely free to use. You can create an account,
+          shorten URLs, and access analytics without any cost.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question">
+          4. Can I track the performance of my links?
+        </div>
+        <div class="faq-answer">
+          Yes, URL Slicer provides detailed analytics to track the performance
+          of your links. You can monitor clicks, traffic sources, and other
+          metrics to measure the effectiveness of your campaigns.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question">
+          5. How secure are the links created with URL Slicer?
+        </div>
+        <div class="faq-answer">
+          URL Slicer uses advanced security features to protect your links. You
+          can set expiration dates, usage limits, and geo-restrictions to ensure
+          your links are safe and secure.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Get all FAQ questions
+  const faqQuestions = document.querySelectorAll(".faq-question");
+
+  // Add click event listener to each question
+  faqQuestions.forEach((question) => {
+    question.addEventListener("click", () => {
+      // Toggle the visibility of the answer when the question is clicked
+      const answer = question.nextElementSibling;
+      answer.classList.toggle("show-answer");
+    });
+  });
+</script>
