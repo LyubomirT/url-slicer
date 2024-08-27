@@ -3,16 +3,28 @@
 <div class="hero-section">
   <div class="hero-content">
     <h2 class="hero-subtitle">Simplify Your Links, Amplify Your Reach</h2>
-    <p class="hero-description">URL Slicer is your go-to tool for creating shorter, more manageable links. Whether you're sharing on social media, sending emails, or managing marketing campaigns, our powerful URL shortener has got you covered.</p>
-    
+    <p class="hero-description">
+      URL Slicer is your go-to tool for creating shorter, more manageable links.
+      Whether you're sharing on social media, sending emails, or managing
+      marketing campaigns, our powerful URL shortener has got you covered.
+    </p>
+
     <% if (typeof user !== 'undefined' && user) { %>
-      <p class="welcome-message">Hello, <span class="user-email"><%= user.email %></span>!</p>
-      <a href="/dashboard" class="btn btn-primary btn-large">Go to Dashboard</a>
+    <p class="welcome-message">
+      Hello, <span class="user-email"><%= user.email %></span>!
+    </p>
+    <a href="/dashboard" class="btn btn-primary btn-large">Go to Dashboard</a>
     <% } else { %>
+    <div class="cta-buttons-primary">
       <div class="cta-buttons">
         <a href="/login" class="btn btn-primary btn-large">Login</a>
         <a href="/register" class="btn btn-secondary btn-large">Register</a>
       </div>
+      <div>
+        <a href="/faq" class="btn btn-primary btn-large">FAQ</a>
+      </div>
+    </div>
+
     <% } %>
   </div>
 </div>
@@ -23,22 +35,31 @@
     <div class="feature-card">
       <i data-feather="link" class="feature-icon"></i>
       <h3 class="feature-title">Custom Short Links</h3>
-      <p class="feature-description">Create memorable, branded short links that reflect your identity.</p>
+      <p class="feature-description">
+        Create memorable, branded short links that reflect your identity.
+      </p>
     </div>
     <div class="feature-card">
       <i data-feather="bar-chart-2" class="feature-icon"></i>
       <h3 class="feature-title">Detailed Analytics</h3>
-      <p class="feature-description">Track clicks, analyze traffic sources, and measure your link performance.</p>
+      <p class="feature-description">
+        Track clicks, analyze traffic sources, and measure your link
+        performance.
+      </p>
     </div>
     <div class="feature-card">
       <i data-feather="shield" class="feature-icon"></i>
       <h3 class="feature-title">Advanced Security</h3>
-      <p class="feature-description">Set expiration dates, usage limits, and geo-restrictions for your links.</p>
+      <p class="feature-description">
+        Set expiration dates, usage limits, and geo-restrictions for your links.
+      </p>
     </div>
     <div class="feature-card">
       <i data-feather="smartphone" class="feature-icon"></i>
       <h3 class="feature-title">Mobile Friendly</h3>
-      <p class="feature-description">Manage your links on-the-go with our responsive design.</p>
+      <p class="feature-description">
+        Manage your links on-the-go with our responsive design.
+      </p>
     </div>
   </div>
 </div>
@@ -59,7 +80,9 @@
     <div class="step">
       <div class="step-number">3</div>
       <h3 class="step-title">Customize</h3>
-      <p class="step-description">Add custom options and restrictions if needed.</p>
+      <p class="step-description">
+        Add custom options and restrictions if needed.
+      </p>
     </div>
     <div class="step">
       <div class="step-number">4</div>
@@ -71,7 +94,9 @@
 
 <div class="cta-section">
   <h2 class="cta-title">Ready to Slice Your URLs?</h2>
-  <p class="cta-description">Join us today and start creating powerful short links that drive results.</p>
+  <p class="cta-description">
+    Join us today and start creating powerful short links that drive results.
+  </p>
   <a href="/register" class="btn btn-primary btn-large">Get Started Now</a>
 </div>
 
