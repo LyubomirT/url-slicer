@@ -35,7 +35,8 @@
     <form id="shorten-form">
       <div class="form-group">
         <label for="original-url">Original URL:</label>
-        <input type="url" id="original-url" name="originalUrl" required placeholder="https://example.com">
+        <input type="text" id="original-url" name="originalUrl" required placeholder="https://example.com">
+        <small id="url-error" class="error tab-content">Please enter a valid URL.</small>
       </div>
       <div class="form-group">
         <label for="custom-alias">Custom Alias (optional, 3-50 symbols):</label>
@@ -213,24 +214,34 @@ $(document).ready(function() {
   $('#shortener-tab').click();
 
   // Form submission for shortening URLs
-  $('#shorten-form').submit(function(e) {
-    e.preventDefault();
-    $.ajax({
-      url: '/shorten',
-      method: 'POST',
-      data: $(this).serialize(),
-      success: function(response) {
-        var shortUrl = response.customAlias || response.shortCode;
-        showModal('URL Shortened', 'URL shortened successfully! Short URL: ' + shortUrl, [
-          {text: 'OK', class: 'btn-primary', click: function() { location.reload(); }}
-        ]);
-      },
-      error: function(xhr) {
-        showModal('Error', 'Error: ' + xhr.responseJSON.error, [
-          {text: 'OK', class: 'btn-primary', click: function() { closeModal(); }}
-        ]);
-      }
-    });
+  $('#shorten-form').submit(function (e) {
+    e.preventDefault(); // Prevent form submission
+    const urlInput = $('#original-url');
+    const urlError = $('#url-error');
+    const urlPattern = /^(https?:\/\/[^\s$.?#].[^\s]*)$/i;
+    // Validate URL
+    if (!urlPattern.test(urlInput.val())) {
+      urlError.show(); // Show the error message
+      urlInput.focus(); // Focus the input field
+    } else {
+      urlError.hide(); // Hide the error message
+      $.ajax({
+        url: '/shorten',
+        method: 'POST',
+        data: $(this).serialize(),
+        success: function (response) {
+          var shortUrl = response.customAlias || response.shortCode;
+          showModal('URL Shortened', 'URL shortened successfully! Short URL: ' + shortUrl, [
+            { text: 'OK', class: 'btn-primary', click: function () { location.reload(); } }
+          ]);
+        },
+        error: function (xhr) {
+          showModal('Error', 'Error: ' + xhr.responseJSON.error, [
+            { text: 'OK', class: 'btn-primary', click: function () { closeModal(); } }
+          ]);
+        }
+      });
+    }
   });
 
   // View stats
