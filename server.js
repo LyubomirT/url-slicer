@@ -32,6 +32,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
   verified: { type: Boolean, default: false },
+  email_notifications: { type: Boolean, default: true },
   verification_token: String,
   reset_token: String,
   reset_token_expires: Date,
@@ -111,6 +112,69 @@ async function deleteExpiredUrls() {
 
 // Run deleteExpiredUrls every minute
 setInterval(deleteExpiredUrls, 60000);
+
+async function checkUrlAboutToExpire() {
+  const now = new Date();
+  const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  try {
+    const userUrls = await Url.aggregate([
+      {
+        $match: {
+          created_at: { $lte: now, $ne: null },
+          auto_delete_at: { $gt: now, $lt: in24Hours, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$user_id",
+          urls: { $push: "$$ROOT" }, // Push all matched documents into an array under 'urls'
+        },
+      },
+    ]);
+
+    for (const userUrl of userUrls) {
+      const user = await User.findById(userUrl._id);
+      if(!user.email_notifications) {
+        continue;
+      }
+      const subject = "URLs about to expire";
+
+      const text = `Hello,\nThis is a reminder that the following URLs are about to expire in 24 hours:\n\n`;
+      const urlsToExpire = userUrl.urls.map((url) => `•URL: ${url.short_code}`).join("\n");
+
+      const mailOptions = {
+        from: process.env.login,
+        to: user.email,
+        subject: subject,
+        text: text + urlsToExpire,
+      };
+    
+      sendEmail(mailOptions);
+      console.log('Email sent to', user.email, 'about URLs about to expire');
+    }
+  } catch (error) {
+    console.error("Error checking URLs about to expire:", error);
+  }
+}
+
+// Run checkUrlAboutToExpire every 24 hours
+setInterval(checkUrlAboutToExpire, 86400000);
+
+async function sendEmail({ from, to, subject, text }) {
+  
+  const mailOptions = {
+    from: from,
+    to: to,
+    subject: subject,
+    text: text
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  }catch (error) {
+    console.error('Error sending email:', error);
+  }
+}
 
 // Logging function
 function log(message, data = {}) {
@@ -209,6 +273,7 @@ app.post('/register', async (req, res) => {
       email: email,
       password: hashedPassword,
       verified: false,
+      email_notifications: true,
       verification_token: verificationToken
     });
 
@@ -225,7 +290,7 @@ app.post('/register', async (req, res) => {
       text: `Please click on this link to verify your email: ${verificationLink}`
     };
     
-    await transporter.sendMail(mailOptions);
+    sendEmail(mailOptions);
     res.redirect('/register-confirmation');
   } catch (error) {
     console.log(error);
@@ -345,7 +410,7 @@ app.post('/forgot-password', async (req, res) => {
         If you did not request this, please ignore this email and your password will remain unchanged.\n`
     };
 
-    await transporter.sendMail(mailOptions);
+    sendEmail(mailOptions);
     res.render('forgot-password', { message: 'An email has been sent to ' + user.email + ' with further instructions.' });
   } catch (error) {
     console.error(error);
@@ -494,6 +559,25 @@ app.get('/account', (req, res) => {
     return res.redirect('/login');
   }
   res.render('account', { user: req.user });
+});
+
+// Add this new route for updating email notifications preferences
+app.post('/account/email-notifications', async (req, res) => {
+  if(!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { emailNotifications } = req.body;
+
+  try {
+    const user = await User.findById(req.user._id);
+    user.email_notifications = emailNotifications;
+    await user.save();
+    res.json({ message: 'Email notifications updated successfully' });
+  } catch (error) {
+    console.error('Error updating email notifications:', error);
+    res.status(500).json({ error: 'An error occurred while updating email notifications' });
+  }
 });
 
 // Add this new route for changing the password
