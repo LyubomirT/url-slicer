@@ -1335,3 +1335,101 @@ canvas {
     margin-left: 0;
   }
 }
+
+/* Hamburger button styles */
+.hamburger-button {
+  display: none;
+  position: fixed;
+  top: 15px;
+  left: 15px;
+  z-index: 1001;
+  background: var(--primary-color);
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.hamburger-button:hover {
+  background: var(--primary-dark);
+}
+
+.hamburger-button span {
+  display: block;
+  width: 25px;
+  height: 3px;
+  background: var(--text-light);
+  margin: 5px auto;
+  transition: var(--transition);
+}
+
+/* Close button styles */
+.close-sidebar {
+  display: none;
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.close-sidebar:hover {
+  color: var(--primary-color);
+}
+
+/* Mobile sidebar styles */
+@media (max-width: 768px) {
+  .hamburger-button {
+    display: block;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px;
+    bottom: 0;
+    width: 280px;
+    z-index: 1000;
+    transition: left 0.3s ease;
+  }
+
+  .sidebar.open {
+    left: 0;
+  }
+
+  .close-sidebar {
+    display: block;
+  }
+
+  .content {
+    margin-left: 0;
+    padding-top: 80px; /* Add space for the hamburger button */
+  }
+
+  #sidebarToggle {
+    display: none; /* Hide "Fix Sidebar" button on mobile */
+  }
+}
+
+/* Dark mode adjustments */
+.dark-mode .hamburger-button {
+  background: var(--primary-dark);
+}
+
+.dark-mode .hamburger-button:hover {
+  background: var(--primary-color);
+}
+
+.dark-mode .close-sidebar {
+  color: var(--text-light);
+}
+
+.dark-mode .close-sidebar:hover {
+  color: var(--primary-color);
+}

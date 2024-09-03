@@ -12,8 +12,14 @@
   <link rel="icon" type="image/png" href="/urlslicer.ico">
 </head>
 <body>
+  <button class="hamburger-button" id="hamburgerButton" aria-label="Open menu">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
   <div class="app-container">
     <nav class="sidebar" id="sidebar">
+      <button class="close-sidebar" id="closeSidebar" aria-label="Close menu">&times;</button>
       <div class="logo">
         <h1>URL Slicer</h1>
       </div>
@@ -41,12 +47,13 @@
   <script>
     // Wrap all JavaScript code in a DOMContentLoaded event listener
     document.addEventListener('DOMContentLoaded', function() {
+      // Existing functionality
       feather.replace();
-
+  
       // Dark mode toggle
       const darkModeToggle = document.getElementById('darkModeToggle');
       const body = document.body;
-
+  
       darkModeToggle.addEventListener('click', function(e) {
         e.preventDefault();
         body.classList.toggle('dark-mode');
@@ -54,45 +61,99 @@
         localStorage.setItem('darkMode', isDarkMode);
         updateDarkModeButton(isDarkMode);
       });
-
+  
       // Check for saved dark mode preference
       const savedDarkMode = localStorage.getItem('darkMode');
       if (savedDarkMode === 'true') {
         body.classList.add('dark-mode');
       }
-
+  
       const fixedSidebar = localStorage.getItem('fixedSidebar');
       if (fixedSidebar === 'true') {
         document.querySelector('.app-container').classList.add('sidebar-closed');
       }
-
-      // Sidebar toggle
+  
+      // Sidebar functionality
       const sidebarToggle = document.getElementById('sidebarToggle');
       const sidebar = document.getElementById('sidebar');
       const appContainer = document.querySelector('.app-container');
-
+      const hamburgerButton = document.getElementById('hamburgerButton');
+      const closeSidebarButton = document.getElementById('closeSidebar');
+  
+      function toggleSidebar() {
+        if (window.innerWidth <= 768) {
+          sidebar.classList.toggle('open');
+        } else {
+          appContainer.classList.toggle('sidebar-closed');
+          const isClosed = appContainer.classList.contains('sidebar-closed');
+          localStorage.setItem('fixedSidebar', isClosed);
+        }
+      }
+  
       sidebarToggle.addEventListener('click', function(e) {
         e.preventDefault();
-        appContainer.classList.toggle('sidebar-closed');
-        const isClosed = appContainer.classList.contains('sidebar-closed');
-        localStorage.setItem('fixedSidebar', isClosed);
+        toggleSidebar();
       });
-
+  
+      hamburgerButton.addEventListener('click', toggleSidebar);
+      closeSidebarButton.addEventListener('click', toggleSidebar);
+  
       // Hover functionality for closed sidebar
       appContainer.addEventListener('mousemove', function(e) {
-        if (appContainer.classList.contains('sidebar-closed') && e.clientX <= 10) {
+        if (window.innerWidth > 768 && appContainer.classList.contains('sidebar-closed') && e.clientX <= 10) {
           appContainer.classList.add('sidebar-hover');
         }
       });
-
+  
       sidebar.addEventListener('mouseleave', function() {
-        if (appContainer.classList.contains('sidebar-closed')) {
+        if (window.innerWidth > 768 && appContainer.classList.contains('sidebar-closed')) {
           appContainer.classList.remove('sidebar-hover');
         }
       });
-
-      // Initialize Feather icons
-      feather.replace();
+  
+      // Hide "Fix Sidebar" button on mobile
+      function updateSidebarToggle() {
+        if (window.innerWidth <= 768) {
+          sidebarToggle.style.display = 'none';
+          appContainer.classList.remove('sidebar-closed');
+          localStorage.removeItem('fixedSidebar');
+        } else {
+          sidebarToggle.style.display = 'flex';
+          const savedFixedSidebar = localStorage.getItem('fixedSidebar');
+          if (savedFixedSidebar === 'true') {
+            appContainer.classList.add('sidebar-closed');
+          }
+        }
+      }
+  
+      window.addEventListener('resize', updateSidebarToggle);
+      updateSidebarToggle(); // Initial call
+  
+      // Close sidebar when clicking outside of it on mobile
+      document.addEventListener('click', function(event) {
+        if (window.innerWidth <= 768) {
+          const isClickInside = sidebar.contains(event.target) || hamburgerButton.contains(event.target);
+          if (!isClickInside && sidebar.classList.contains('open')) {
+            sidebar.classList.remove('open');
+          }
+        }
+      });
+  
+      // Function to update dark mode button (if it exists)
+      function updateDarkModeButton(isDarkMode) {
+        const darkModeIcon = darkModeToggle.querySelector('i');
+        if (darkModeIcon) {
+          if (isDarkMode) {
+            darkModeIcon.setAttribute('data-feather', 'sun');
+          } else {
+            darkModeIcon.setAttribute('data-feather', 'moon');
+          }
+          feather.replace();
+        }
+      }
+  
+      // Initial call to set correct icon
+      updateDarkModeButton(body.classList.contains('dark-mode'));
     });
   </script>
 </body>
