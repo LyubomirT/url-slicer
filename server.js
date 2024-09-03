@@ -733,23 +733,57 @@ app.post('/:code/verify', async (req, res) => {
       return res.status(404).json({ error: 'URL not found' });
     }
 
-    // Check the number of failed attempts in the last 5 minutes
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    const failedAttempts = await FailedAttempt.countDocuments({
-      url_id: url._id,
-      ip_address: ip,
-      attempted_at: { $gt: fiveMinutesAgo }
-    });
+    const now = new Date();
+    const fiveMinutesAgo = new Date(now - 5 * 60 * 1000);
+    const halfHourAgo = new Date(now - 30 * 60 * 1000);
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    const oneWeekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-    if (failedAttempts >= 5) {
-      return res.status(429).json({ error: 'Too many failed attempts. Please try again later.' });
+    const [fiveMinAttempts, halfHourAttempts, dayAttempts, weekAttempts] = await Promise.all([
+      FailedAttempt.countDocuments({
+        url_id: url._id,
+        ip_address: ip,
+        attempted_at: { $gt: fiveMinutesAgo }
+      }),
+      FailedAttempt.countDocuments({
+        url_id: url._id,
+        ip_address: ip,
+        attempted_at: { $gt: halfHourAgo }
+      }),
+      FailedAttempt.countDocuments({
+        url_id: url._id,
+        ip_address: ip,
+        attempted_at: { $gt: oneDayAgo }
+      }),
+      FailedAttempt.countDocuments({
+        url_id: url._id,
+        ip_address: ip,
+        attempted_at: { $gt: oneWeekAgo }
+      })
+    ]);
+
+    if (fiveMinAttempts >= 5) {
+      return res.status(429).json({ error: 'Too many attempts. Please try again in 5 minutes.' });
+    }
+
+    if (halfHourAttempts >= 25) {
+      return res.status(429).json({ error: 'Too many attempts. Please try again in 30 minutes.' });
+    }
+
+    if (dayAttempts >= 40) {
+      return res.status(429).json({ error: 'Daily limit exceeded. Please try again tomorrow.' });
+    }
+
+    if (weekAttempts >= 75) {
+      return res.status(429).json({ error: 'Weekly limit exceeded. Please try again next week.' });
     }
 
     if (password !== url.password) {
       // Record failed attempt
       await FailedAttempt.create({
         url_id: url._id,
-        ip_address: ip
+        ip_address: ip,
+        attempted_at: now
       });
       return res.status(401).json({ error: 'Incorrect password' });
     }
@@ -762,6 +796,15 @@ app.post('/:code/verify', async (req, res) => {
     res.status(500).json({ error: 'An error occurred while verifying the password' });
   }
 });
+
+// Add a cleanup job to remove old failed attempts
+const cleanupFailedAttempts = async () => {
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  await FailedAttempt.deleteMany({ attempted_at: { $lt: oneWeekAgo } });
+};
+
+// Run the cleanup job every day
+setInterval(cleanupFailedAttempts, 24 * 60 * 60 * 1000);
 
 app.get('/stats/:code', async (req, res) => {
   if (!req.user) {
