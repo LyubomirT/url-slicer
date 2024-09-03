@@ -15,6 +15,7 @@ const QRCode = require('qrcode');
 const useragent = require('express-useragent');
 const geoip = require('geoip-lite');
 const flash = require('connect-flash');
+const rateLimit = require('express-rate-limit');
 dotenv.config();
 
 const app = express();
@@ -89,6 +90,34 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(useragent.express());
 app.use(flash());
+
+// Rate limiting configuration
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+
+// Apply rate limiting to all requests
+app.use(limiter);
+
+// More specific rate limiters
+const createAccountLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 5, // start blocking after 5 requests
+  message: "Too many accounts created from this IP, please try again after an hour"
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // start blocking after 5 requests
+  message: "Too many login attempts from this IP, please try again after 15 minutes"
+});
+
+const urlShortenLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 10, // start blocking after 10 requests
+  message: "Too many URLs shortened from this IP, please try again after an hour"
+});
 
 // Function to delete expired URLs
 async function deleteExpiredUrls() {
@@ -247,7 +276,7 @@ app.get('/login', (req, res) => {
   res.render('login', { message: req.flash('error') });
 });
 
-app.post('/login', passport.authenticate('local', {
+app.post('/login', loginLimiter, passport.authenticate('local', {
   successRedirect: '/dashboard',
   failureRedirect: '/login',
   failureFlash: true
@@ -257,7 +286,7 @@ app.get('/register', (req, res) => {
   res.render('register', { message: req.flash('error') });
 });
 
-app.post('/register', async (req, res) => {
+app.post('/register', createAccountLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     const existingUser = await User.findOne({ email: email });
@@ -334,7 +363,7 @@ app.get('/dashboard', async (req, res) => {
   }
 });
 
-app.post('/shorten', async (req, res) => {
+app.post('/shorten', urlShortenLimiter, async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
