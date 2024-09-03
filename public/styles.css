@@ -1433,3 +1433,28 @@ canvas {
 .dark-mode .close-sidebar:hover {
   color: var(--primary-color);
 }
+
+
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .form-col {
+    width: 100%;
+  }
+
+  /* Ensure inputs take full width on mobile */
+  .form-col input[type="number"],
+  .form-col input[type="datetime-local"] {
+    width: 100%;
+  }
+
+  /* Add some spacing between the label and input on mobile */
+  .form-col label {
+    display: block;
+    margin-bottom: 5px;
+  }
+  
+}
