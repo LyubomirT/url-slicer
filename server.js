@@ -385,7 +385,7 @@ app.post('/shorten', urlShortenLimiter, async (req, res) => {
     if (existingUrl) {
       return res.status(400).json({ error: 'The custom alias or generated short code is already taken' });
     }
-
+    console.log("whitelistMode", whitelistMode  === 'on');
     // If the alias is not taken, create the URL
     const newUrl = new Url({
       user_id: req.user._id,
@@ -394,7 +394,7 @@ app.post('/shorten', urlShortenLimiter, async (req, res) => {
       custom_alias: customAlias,
       max_uses: maxUses,
       auto_delete_at: autoDeleteAt,
-      whitelist_mode: whitelistMode,
+      whitelist_mode: whitelistMode  === 'on' ? true : false,
       allowed_countries: allowedCountries,
       blocked_countries: blockedCountries,
       password: password
