@@ -287,7 +287,7 @@ $(document).ready(function() {
       success: function(response) {
         $('#edit-short-code').val(shortCode);
         $('#edit-max-uses').val(response.max_uses);
-        $('#edit-auto-delete-at').val(response.auto_delete_at);
+        $('#edit-auto-delete-at').val(new Date(response.auto_delete_at).toISOString().slice(0, 16));
         $('#edit-whitelist-mode').prop('checked', response.whitelist_mode);
         $('#edit-allowed-countries').val(response.allowed_countries);
         $('#edit-blocked-countries').val(response.blocked_countries);
