@@ -94,6 +94,7 @@
               </a>
             </p>
             <p class="click-count" data-short-code="<%= url.custom_alias || url.short_code %>"></p>
+            <p class="last-click">Last Clicked: <%= url.last_clicked_at ? new Date(url.last_clicked_at).toLocaleString() : 'Never' %></p> <!-- New Line -->
           </div>
           <div class="url-meta">
             <p>Created: <%= new Date(url.created_at).toLocaleString() %></p>

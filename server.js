@@ -51,8 +51,10 @@ const urlSchema = new mongoose.Schema({
   whitelist_mode: { type: Boolean, default: false },
   allowed_countries: [String],
   blocked_countries: [String],
-  password: String
+  password: String,
+  last_clicked_at: { type: Date, default: null } // New field
 });
+
 
 const clickSchema = new mongoose.Schema({
   url_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Url', required: true },
@@ -731,12 +733,16 @@ app.get('/:code', async (req, res) => {
     }
 
     const userAgent = req.useragent;
+    // Record the click
     await Click.create({
       url_id: url._id,
       country: country,
       browser: userAgent.browser,
       device: userAgent.isMobile ? 'Mobile' : (userAgent.isTablet ? 'Tablet' : 'Desktop')
     });
+
+    // Update the last_clicked_at field in the Url document
+    await Url.findByIdAndUpdate(url._id, { last_clicked_at: new Date() });
 
     console.log('The user agent uses ' + userAgent.browser + ' on a ' + (userAgent.isMobile ? 'mobile' : (userAgent.isTablet ? 'tablet' : 'desktop')) + ' device.');
 
@@ -1099,3 +1105,5 @@ process.on('SIGINT', async () => {
     process.exit(1);
   }
 });
+
+module.exports = { Click };
