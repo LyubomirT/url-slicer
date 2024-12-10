@@ -12,7 +12,7 @@ URL Slicer is an easy-to-use, lightweight web tool for shortening URLs in a mode
 
 ## 🌐 Try URL Slicer out!
 
-You can try out URL Slicer at [url-slicer.obl.ong](https://urlslicer.obl.ong). It's totally free and has absolutely no limits!
+You can try out URL Slicer at [the website](https://url-slicer-4665bb5fd763.herokuapp.com/). It's totally free and has absolutely no limits!
 
 ## 🚀 Features
 
