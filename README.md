@@ -1,3 +1,7 @@
+# IMPORTANT: COMPLETE REVAMP UPCOMING
+
+The app is not fully secure, stable, and reliable in my opinion. I am currently working on a full revamp that will improve the visual design and fix many issues users are currently facing.
+
 # URL Slicer 🔪
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
