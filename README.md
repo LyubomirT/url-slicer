@@ -1,6 +1,6 @@
-# IMPORTANT: COMPLETE REVAMP UPCOMING
+# THIS IS SHUT DOWN
 
-The app is not fully secure, stable, and reliable in my opinion. I am currently working on a full revamp that will improve the visual design and fix many issues users are currently facing.
+As this was simply a project I was working on for studies, it is now shut down so that it doesn't drain my Heroku credits anymore. There are also tons of security issues and I don't have the time or energy to maintain this anymore. Maybe I'll revisit the concept in the future, but definitely not anytime soon.
 
 # URL Slicer 🔪
 
